@@ -12,6 +12,7 @@ app.config["SECRET_KEY"] = "chave-desenvolvimento-local"
 
 # Configura o banco e cria a tabela, caso ela não exista.
 init_app(app)
+app.config["TESTING"] = False
 
 
 @app.route("/")
