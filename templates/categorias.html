@@ -1,0 +1,175 @@
+{% extends "base.html" %}
+
+{% block titulo %}
+Categorias - ChamaServiço
+{% endblock %}
+
+{% block conteudo %}
+
+{% if modo == "listar" %}
+
+    <h2>Categorias de serviço</h2>
+
+    <p>
+        <a class="botao" href="{{ url_for('nova_categoria') }}">
+            Cadastrar categoria
+        </a>
+    </p>
+
+    {% if categorias %}
+
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Nome</th>
+                    <th>Descrição</th>
+                    <th>Status</th>
+                    <th>Ações</th>
+                </tr>
+            </thead>
+
+            <tbody>
+                {% for categoria in categorias %}
+                    <tr>
+                        <td>{{ categoria.id }}</td>
+                        <td>{{ categoria.nome }}</td>
+                        <td>{{ categoria.descricao or "-" }}</td>
+
+                        <td>
+                            {% if categoria.ativo %}
+                                Ativa
+                            {% else %}
+                                <span class="inativo">Inativa</span>
+                            {% endif %}
+                        </td>
+
+                        <td class="acoes">
+                            <a href="{{ url_for(
+                                'consultar_categoria',
+                                categoria_id=categoria.id
+                            ) }}">Consultar</a>
+
+                            {% if categoria.ativo %}
+                                |
+                                <a href="{{ url_for(
+                                    'editar_categoria',
+                                    categoria_id=categoria.id
+                                ) }}">Editar</a>
+
+                                |
+
+                                <form
+                                    method="POST"
+                                    action="{{ url_for(
+                                        'desativar_categoria',
+                                        categoria_id=categoria.id
+                                    ) }}"
+                                    onsubmit="return confirm(
+                                        'Deseja desativar esta categoria?'
+                                    );"
+                                >
+                                    <button type="submit">
+                                        Desativar
+                                    </button>
+                                </form>
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+    {% else %}
+
+        <p>Nenhuma categoria cadastrada ainda.</p>
+
+    {% endif %}
+
+
+{% elif modo == "nova" or modo == "editar" %}
+
+    {% if modo == "nova" %}
+        <h2>Cadastrar categoria</h2>
+        {% set acao_formulario = url_for('nova_categoria') %}
+    {% else %}
+        <h2>Alterar categoria</h2>
+        {% set acao_formulario = url_for(
+            'editar_categoria',
+            categoria_id=categoria.id
+        ) %}
+    {% endif %}
+
+    <form method="POST" action="{{ acao_formulario }}">
+
+        <label for="nome">Nome da categoria *</label>
+
+        <input
+            type="text"
+            id="nome"
+            name="nome"
+            maxlength="100"
+            required
+            value="{{ nome if nome is defined else '' }}"
+        >
+
+        <label for="descricao">Descrição</label>
+
+        <textarea
+            id="descricao"
+            name="descricao"
+            rows="4"
+        >{{ descricao if descricao is defined else '' }}</textarea>
+
+        <button type="submit">Salvar</button>
+
+        <a class="botao" href="{{ url_for('listar_categorias') }}">
+            Cancelar
+        </a>
+
+    </form>
+
+
+{% elif modo == "consultar" %}
+
+    <h2>Detalhes da categoria</h2>
+
+    <p><strong>ID:</strong> {{ categoria.id }}</p>
+
+    <p><strong>Nome:</strong> {{ categoria.nome }}</p>
+
+    <p>
+        <strong>Descrição:</strong>
+        {{ categoria.descricao or "Não informada" }}
+    </p>
+
+    <p>
+        <strong>Status:</strong>
+        {% if categoria.ativo %}
+            Ativa
+        {% else %}
+            Inativa
+        {% endif %}
+    </p>
+
+    <p>
+        <strong>Data de criação:</strong>
+        {{ categoria.data_criacao }}
+    </p>
+
+    <a class="botao" href="{{ url_for('listar_categorias') }}">
+        Voltar
+    </a>
+
+    {% if categoria.ativo %}
+        <a class="botao" href="{{ url_for(
+            'editar_categoria',
+            categoria_id=categoria.id
+        ) }}">
+            Editar
+        </a>
+    {% endif %}
+
+{% endif %}
+
+{% endblock %}
