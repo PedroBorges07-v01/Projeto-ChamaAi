@@ -200,3 +200,95 @@ def test_impedir_prestador_duplicado(cliente):
 
     assert resposta.status_code == 200
     assert "Já existe um prestador" in resposta.get_data(as_text=True)
+
+
+def test_reativar_categoria(cliente):
+    cliente.post("/categorias/nova", data={
+        "nome": "Jardinagem para reativar",
+        "descricao": "Teste de reativacao"
+    })
+
+    with aplicacao.app_context():
+        categoria = get_db().execute(
+            "SELECT id FROM categorias WHERE nome = ?",
+            ("Jardinagem para reativar",)
+        ).fetchone()
+
+    # Primeiro, desativa a categoria.
+    cliente.post(f"/categorias/{categoria['id']}/desativar")
+
+    # Depois, reativa a categoria.
+    resposta = cliente.post(
+        f"/categorias/{categoria['id']}/ativar",
+        follow_redirects=True
+    )
+
+    assert resposta.status_code == 200
+    assert "Jardinagem para reativar" in resposta.get_data(as_text=True)
+    assert "Ativa" in resposta.get_data(as_text=True)
+
+    with aplicacao.app_context():
+        categoria_atualizada = get_db().execute(
+            "SELECT ativo FROM categorias WHERE id = ?",
+            (categoria["id"],)
+        ).fetchone()
+
+    assert categoria_atualizada["ativo"] == 1
+
+
+def test_impedir_desativar_categoria_inativa_novamente(cliente):
+    cliente.post("/categorias/nova", data={
+        "nome": "Categoria ja inativa",
+        "descricao": "Teste de desativacao repetida"
+    })
+
+    with aplicacao.app_context():
+        categoria = get_db().execute(
+            "SELECT id FROM categorias WHERE nome = ?",
+            ("Categoria ja inativa",)
+        ).fetchone()
+
+    cliente.post(f"/categorias/{categoria['id']}/desativar")
+
+    resposta = cliente.post(
+        f"/categorias/{categoria['id']}/desativar",
+        follow_redirects=True
+    )
+
+    assert resposta.status_code == 200
+    assert "Essa categoria já está desativada." in resposta.get_data(
+        as_text=True
+    )
+
+
+def test_impedir_reativar_categoria_ativa_novamente(cliente):
+    cliente.post("/categorias/nova", data={
+        "nome": "Categoria ja ativa",
+        "descricao": "Teste de ativacao repetida"
+    })
+
+    with aplicacao.app_context():
+        categoria = get_db().execute(
+            "SELECT id FROM categorias WHERE nome = ?",
+            ("Categoria ja ativa",)
+        ).fetchone()
+
+    resposta = cliente.post(
+        f"/categorias/{categoria['id']}/ativar",
+        follow_redirects=True
+    )
+
+    assert resposta.status_code == 200
+    assert "Essa categoria já está ativa." in resposta.get_data(
+        as_text=True
+    )
+
+
+def test_ativar_categoria_inexistente(cliente):
+    resposta = cliente.post(
+        "/categorias/999999/ativar",
+        follow_redirects=True
+    )
+
+    assert resposta.status_code == 200
+    assert "Categoria não encontrada." in resposta.get_data(as_text=True)

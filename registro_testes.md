@@ -1,7 +1,7 @@
-# ChamaServiço — Registro de Testes
+# ChamaAí — Registro de Testes
 
 ## 1. Objetivo
-Registrar os testes realizados no sistema ChamaServiço, incluindo os testes automatizados e os testes de interface.
+Registrar os testes realizados no sistema ChamaAí, incluindo os testes automatizados e os testes de interface.
 
 ## 2. Ambiente de testes
 - Linguagem: Python
@@ -34,3 +34,20 @@ O conjunto de testes automatizados dos CRUDs apresentou 11 testes aprovados. O t
 - Verificar o registro de defeitos em uma ferramenta de rastreamento.
 - Atualizar o cronograma com as datas e durações reais.
 - Preparar o relatório de status do projeto.
+
+### Testes do RF31 — Ativação e desativação de categorias
+
+**Data de execução:** 28/10/2026  
+**Arquivo de testes:** `tests/test_crud.py`  
+**Ferramenta:** pytest
+
+**Resultado:** 15 testes passaram.
+
+**Comportamentos verificados:**
+- Desativação de categoria;
+- Reativação de categoria;
+- Prevenção de desativação repetida;
+- Prevenção de ativação repetida;
+- Tratamento de categoria inexistente.
+
+**Conclusão:** os testes automatizados executados passaram. O controle de acesso administrativo permanece pendente de implementação e validação.
