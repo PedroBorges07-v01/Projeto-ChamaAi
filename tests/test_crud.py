@@ -33,6 +33,21 @@ def cliente(tmp_path):
                 data_criacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
+
+        
+        db.execute("""
+            CREATE TABLE IF NOT EXISTS prestador_servicos (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                prestador_id INTEGER NOT NULL,
+                categoria_id INTEGER NOT NULL,
+                FOREIGN KEY (prestador_id)
+                    REFERENCES prestadores (id),
+                FOREIGN KEY (categoria_id)
+                    REFERENCES categorias (id),
+                UNIQUE (prestador_id, categoria_id)
+            )
+        """)
+
         db.commit()
 
     with aplicacao.test_client() as cliente_teste:

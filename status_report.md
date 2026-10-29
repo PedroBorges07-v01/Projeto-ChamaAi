@@ -1,14 +1,13 @@
-# STATUS REPORT — Projeto ChamaServiço
+# STATUS REPORT — Projeto ChamaAí
 
-**Projeto:** ChamaServiço — Marketplace de Serviços  
-**Data do relatório:** A preencher  
-**Responsável:** A preencher  
-**Período de referência:** A preencher  
+**Projeto:** ChamaAí — Marketplace de Serviços  
+**Data do relatório:** 27/10/2026  
+**Responsável:** Pedro Henrique Borges   
 **Versão do relatório:** 1.0
 
 ## 1. Resumo executivo
 
-O projeto ChamaServiço tem como objetivo desenvolver uma aplicação web para gerenciar categorias de serviços e prestadores. A aplicação foi desenvolvida utilizando Python, Flask, SQLite, HTML e CSS.
+O projeto ChamaAí tem como objetivo desenvolver uma aplicação web para gerenciar categorias de serviços e prestadores. A aplicação foi desenvolvida utilizando Python, Flask, SQLite, HTML e CSS.
 
 Até a data deste relatório, os dois módulos CRUD — categorias e prestadores — foram implementados. Também foram desenvolvidos testes automatizados com pytest e um teste de interface utilizando Selenium e Google Chrome.
 

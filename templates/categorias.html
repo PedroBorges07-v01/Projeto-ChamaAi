@@ -45,16 +45,13 @@ Categorias - ChamaServiço
                         </td>
 
                         <td class="acoes">
-                            <a href="{{ url_for(
-                                'consultar_categoria',
-                                categoria_id=categoria.id
-                            ) }}">Consultar</a>
+                            <a href="{{ url_for('consultar_categoria', categoria_id=categoria.id) }}">Consultar</a>
 
                             {% if categoria.ativo %}
                                 |
                                 <a href="{{ url_for(
-                                    'editar_categoria',
-                                    categoria_id=categoria.id
+                                'editar_categoria',
+                                categoria_id=categoria.id
                                 ) }}">Editar</a>
 
                                 |
@@ -69,10 +66,21 @@ Categorias - ChamaServiço
                                         'Deseja desativar esta categoria?'
                                     );"
                                 >
-                                    <button type="submit">
-                                        Desativar
-                                    </button>
+                                    <button type="submit">Desativar</button>
                                 </form>
+
+                            {% else %}
+                                |
+
+                                
+                                <form
+                                    method="POST"
+                                    action="{{ url_for('ativar_categoria', categoria_id=categoria.id) }}"
+                                    onsubmit="return confirm('Deseja reativar esta categoria?');"
+                                >
+                                    <button type="submit">Ativar</button>
+                                </form>
+
                             {% endif %}
                         </td>
                     </tr>

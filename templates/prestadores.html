@@ -1,4 +1,3 @@
-
 {% extends "base.html" %}
 {% block titulo %}Prestadores - ChamaAí{% endblock %}
 
@@ -34,16 +33,25 @@
                 Consultar
               </a>
               {% if p.ativo %}
+              
                 | <a href="{{ url_for('editar_prestador', prestador_id=p.id) }}">
                   Editar
                 </a>
                 |
                 <form method="POST"
-                      action="{{ url_for('desativar_prestador', prestador_id=p.id) }}"
-                      onsubmit="return confirm('Deseja desativar este prestador?');">
+                    action="{{ url_for('desativar_prestador', prestador_id=p.id) }}"
+                    onsubmit="return confirm('Deseja desativar este prestador?');">
                   <button type="submit">Desativar</button>
                 </form>
+              {% else %}
+                |
+                <form method="POST"
+                    action="{{ url_for('ativar_prestador', prestador_id=p.id) }}"
+                    onsubmit="return confirm('Deseja reativar este prestador?');">
+                  <button type="submit">Reativar</button>
+                </form>
               {% endif %}
+
             </td>
           </tr>
         {% endfor %}
@@ -83,6 +91,32 @@
     <label for="especialidade">Especialidade</label>
     <input id="especialidade" name="especialidade" type="text" maxlength="100"
            value="{{ especialidade if especialidade is defined else '' }}">
+    
+    
+<fieldset>
+  <legend>Serviços oferecidos</legend>
+
+  {% if categorias %}
+    {% for categoria in categorias %}
+      <label>
+        <input
+          type="checkbox"
+          name="categorias"
+          value="{{ categoria.id }}"
+          {% if categoria.id|string in categorias_selecionadas %}checked{% endif %}
+        >
+        {{ categoria.nome }}
+        {% if not categoria.ativo %}
+          (inativa)
+        {% endif %}
+      </label>
+    {% endfor %}
+  {% else %}
+    <p>Não há categorias disponíveis para seleção.</p>
+  {% endif %}
+</fieldset>
+
+
 
     <button type="submit">Salvar</button>
     <a class="botao" href="{{ url_for('listar_prestadores') }}">Cancelar</a>
@@ -96,6 +130,16 @@
   <p><strong>E-mail:</strong> {{ prestador.email }}</p>
   <p><strong>Telefone:</strong> {{ prestador.telefone or "Não informado" }}</p>
   <p><strong>Especialidade:</strong> {{ prestador.especialidade or "Não informada" }}</p>
+  <p><strong>Serviços oferecidos:</strong></p>
+  {% if servicos %}
+    <ul>
+      {% for servico in servicos %}
+        <li>{{ servico.nome }}</li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p>Nenhuma categoria de serviço vinculada.</p>
+  {% endif %}
   <p><strong>Status:</strong> {% if prestador.ativo %}Ativo{% else %}Inativo{% endif %}</p>
   <p><strong>Data de criação:</strong> {{ prestador.data_criacao }}</p>
 
