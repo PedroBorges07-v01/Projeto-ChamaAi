@@ -63,6 +63,19 @@ def init_db():
         )
     """)
 
+    db.execute("""
+        CREATE TABLE IF NOT EXISTS usuarios (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nome TEXT NOT NULL,
+            email TEXT NOT NULL UNIQUE,
+            senha_hash TEXT NOT NULL,
+            tipo TEXT NOT NULL
+                CHECK (tipo IN ('cliente', 'prestador', 'admin')),
+            ativo INTEGER NOT NULL DEFAULT 1,
+            data_criacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
     db.commit()
 
 

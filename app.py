@@ -1,7 +1,19 @@
 from flask import Flask, render_template, request, redirect, url_for, flash
 import sqlite3
-
 from database import get_db, init_app
+from flask_login import (
+    LoginManager,
+    UserMixin,
+    login_user,
+    logout_user,
+    login_required,
+    current_user
+)
+from werkzeug.security import (
+    generate_password_hash,
+    check_password_hash
+)
+from functools import wraps
 
 
 app = Flask(__name__)
@@ -9,10 +21,160 @@ app = Flask(__name__)
 # Chave para utilizar mensagens temporárias do Flask.
 # Em produção, utilize uma chave secreta configurada de forma segura.
 app.config["SECRET_KEY"] = "chave-desenvolvimento-local"
+login_manager = LoginManager()
+login_manager.login_view = "login"
+login_manager.init_app(app)
 
 # Configura o banco e cria a tabela, caso ela não exista.
 init_app(app)
 app.config["TESTING"] = False
+
+class Usuario(UserMixin):
+    def __init__(self, id, nome, email, senha_hash, tipo, ativo):
+        self.id = str(id)
+        self.nome = nome
+        self.email = email
+        self.senha_hash = senha_hash
+        self.tipo = tipo
+        self.ativo = ativo == 1
+
+
+@login_manager.user_loader
+def carregar_usuario(user_id):
+    db = get_db()
+
+    usuario = db.execute(
+        """
+        SELECT id, nome, email, senha_hash, tipo, ativo
+        FROM usuarios
+        WHERE id = ?
+        """,
+        (user_id,)
+    ).fetchone()
+
+    if usuario is None or usuario["ativo"] != 1:
+        return None
+
+    return Usuario(
+        usuario["id"],
+        usuario["nome"],
+        usuario["email"],
+        usuario["senha_hash"],
+        usuario["tipo"],
+        usuario["ativo"]
+    )
+
+
+def admin_required(view):
+    @wraps(view)
+    @login_required
+    def wrapped_view(*args, **kwargs):
+        if current_user.tipo != "admin":
+            flash("Acesso restrito ao administrador.", "erro")
+            return redirect(url_for("inicio"))
+
+        return view(*args, **kwargs)
+
+    return wrapped_view
+
+
+
+import click
+
+
+@app.cli.command("criar-admin")
+def criar_admin():
+    """Cria uma conta de administrador pelo terminal."""
+
+    nome = click.prompt("Nome do administrador").strip()
+    email = click.prompt("E-mail").strip().lower()
+
+    if not nome or not email:
+        click.echo("Nome e e-mail são obrigatórios.")
+        return
+
+    db = get_db()
+
+    existente = db.execute(
+        "SELECT id FROM usuarios WHERE email = ?",
+        (email,)
+    ).fetchone()
+
+    if existente:
+        click.echo("Já existe uma conta com esse e-mail.")
+        return
+
+    senha = click.prompt(
+        "Senha",
+        hide_input=True,
+        confirmation_prompt=True
+    )
+
+    if len(senha) < 8:
+        click.echo("A senha deve ter pelo menos 8 caracteres.")
+        return
+
+    db.execute(
+        """
+        INSERT INTO usuarios (nome, email, senha_hash, tipo)
+        VALUES (?, ?, ?, 'admin')
+        """,
+        (nome, email, generate_password_hash(senha))
+    )
+
+    db.commit()
+
+    click.echo("Administrador criado com sucesso.")
+
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if current_user.is_authenticated:
+        return redirect(url_for("inicio"))
+
+    if request.method == "POST":
+        email = request.form.get("email", "").strip().lower()
+        senha = request.form.get("senha", "")
+
+        db = get_db()
+        usuario = db.execute(
+            """
+            SELECT id, nome, email, senha_hash, tipo, ativo
+            FROM usuarios
+            WHERE email = ?
+            """,
+            (email,)
+        ).fetchone()
+
+        if (
+            usuario is not None
+            and usuario["ativo"] == 1
+            and check_password_hash(usuario["senha_hash"], senha)
+        ):
+            usuario_logado = Usuario(
+                usuario["id"],
+                usuario["nome"],
+                usuario["email"],
+                usuario["senha_hash"],
+                usuario["tipo"],
+                usuario["ativo"]
+            )
+
+            login_user(usuario_logado)
+            flash("Login realizado com sucesso.", "sucesso")
+            return redirect(url_for("inicio"))
+
+        flash("E-mail ou senha inválidos.", "erro")
+
+    return render_template("login.html")
+
+
+@app.route("/logout", methods=["POST"])
+@login_required
+def logout():
+    logout_user()
+    flash("Você saiu da sua conta.", "sucesso")
+    return redirect(url_for("login"))
 
 
 @app.route("/")
@@ -38,6 +200,7 @@ def listar_categorias():
 
 
 @app.route("/categorias/nova", methods=["GET", "POST"])
+@admin_required
 def nova_categoria():
     if request.method == "POST":
         nome = request.form.get("nome", "").strip()
@@ -111,6 +274,7 @@ def consultar_categoria(categoria_id):
 
 
 @app.route("/categorias/<int:categoria_id>/editar", methods=["GET", "POST"])
+@admin_required
 def editar_categoria(categoria_id):
     db = get_db()
 
@@ -181,6 +345,7 @@ def editar_categoria(categoria_id):
 
 
 @app.route("/categorias/<int:categoria_id>/desativar", methods=["POST"])
+@admin_required
 def desativar_categoria(categoria_id):
     db = get_db()
 
@@ -210,6 +375,7 @@ def desativar_categoria(categoria_id):
     return redirect(url_for("listar_categorias"))
 
 @app.route("/categorias/<int:categoria_id>/ativar", methods=["POST"])
+@admin_required
 def ativar_categoria(categoria_id):
     db = get_db()
 

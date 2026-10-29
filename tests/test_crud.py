@@ -1,17 +1,22 @@
 
 import pytest
+from werkzeug.security import generate_password_hash
+
 from app import app as aplicacao
 from database import get_db
+
 
 
 @pytest.fixture
 def cliente(tmp_path):
     banco_original = aplicacao.config["DATABASE"]
-    aplicacao.config["TESTING"] = True
+    testing_original = aplicacao.config["TESTING"]
     aplicacao.config["DATABASE"] = str(tmp_path / "teste.db")
+    aplicacao.config["TESTING"] = True
 
     with aplicacao.app_context():
         db = get_db()
+
         db.execute("""
             CREATE TABLE IF NOT EXISTS categorias (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -21,6 +26,7 @@ def cliente(tmp_path):
                 data_criacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
+
         db.execute("""
             CREATE TABLE IF NOT EXISTS prestadores (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -34,7 +40,6 @@ def cliente(tmp_path):
             )
         """)
 
-        
         db.execute("""
             CREATE TABLE IF NOT EXISTS prestador_servicos (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -48,13 +53,41 @@ def cliente(tmp_path):
             )
         """)
 
+        db.execute("""
+            CREATE TABLE IF NOT EXISTS usuarios (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                nome TEXT NOT NULL,
+                email TEXT NOT NULL UNIQUE,
+                senha_hash TEXT NOT NULL,
+                tipo TEXT NOT NULL
+                    CHECK (tipo IN ('cliente', 'prestador', 'admin')),
+                ativo INTEGER NOT NULL DEFAULT 1,
+                data_criacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        db.execute("""
+            INSERT INTO usuarios (nome, email, senha_hash, tipo)
+            VALUES (?, ?, ?, ?)
+        """, (
+            "Admin de Teste",
+            "admin-teste@example.com",
+            generate_password_hash("SenhaTeste123!"),
+            "admin"
+        ))
+
         db.commit()
 
     with aplicacao.test_client() as cliente_teste:
+        with cliente_teste.session_transaction() as sessao:
+            sessao["_user_id"] = "1"
+            sessao["_fresh"] = True
+
         yield cliente_teste
 
     aplicacao.config["DATABASE"] = banco_original
-    aplicacao.config["TESTING"] = False
+    aplicacao.config["TESTING"] = testing_original
+
 
 
 def test_listar_categorias(cliente):
