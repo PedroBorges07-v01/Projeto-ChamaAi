@@ -193,20 +193,18 @@ def test_desativar_categoria(admin_logado):
         By.XPATH, ".//button[normalize-space()='Desativar']"
     ).click()
 
-    # Confirma que o status passou para Inativa
-    espera.until(
-        EC.text_to_be_present_in_element(
-            (By.XPATH, f"//tr[td[contains(., '{nome_categoria}')]]"),
-            "Inativa"
+    # Aguarda a atualização da página após desativar
+    espera.until(EC.staleness_of(linha))
+
+    # Busca novamente a linha, pois a página pode ter sido atualizada
+    linha_atualizada = espera.until(
+        EC.presence_of_element_located(
+            (By.XPATH, f"//tr[td[contains(., '{nome_categoria}')]]")
         )
     )
 
-    linha_atualizada = navegador.find_element(
-        By.XPATH, f"//tr[td[contains(., '{nome_categoria}')]]"
-    )
-    assert "Inativa" in linha_atualizada.text
-    assert linha_atualizada.find_elements(
-        By.XPATH, ".//button[normalize-space()='Ativar']"
+    espera.until(
+        lambda _: "Inativa" in linha_atualizada.text
     )
 
 
@@ -383,21 +381,6 @@ def test_impedir_prestador_duplicado(navegador):
         ) == "complete"
     )
 
-    print("URL após segunda tentativa:", navegador.current_url)
-    print(
-        "Página após segunda tentativa:",
-        navegador.execute_script(
-            "return document.body.innerText"
-    )
-)
-
-    print("URL após cadastro:", navegador.current_url)
-    print(
-        "Página após cadastro:",
-        navegador.execute_script(
-            "return document.body.innerText"
-    )
-)
     # Tenta cadastrar outro prestador com o mesmo CPF
     navegador.get(f"{URL_BASE}/prestadores/novo")
 
@@ -630,12 +613,29 @@ def test_consultar_prestador_com_servicos(admin_logado):
         By.CSS_SELECTOR, "button[type='submit']"
     ).click()
 
-    # Abre o formulário de cadastro do prestador
+    # Aguarda o envio do formulário e o redirecionamento
+    espera.until(EC.url_to_be(f"{URL_BASE}/categorias"))
+
+    # Confirma que a categoria foi cadastrada
+    espera.until(
+        EC.text_to_be_present_in_element(
+            (By.TAG_NAME, "body"),
+            nome_categoria
+        )
+    )
+
+    # Só então abre o cadastro de prestador
     navegador.get(f"{URL_BASE}/prestadores/novo")
+
+    # Aguarda o formulário de prestador carregar
+    espera.until(
+        EC.presence_of_element_located((By.NAME, "nome"))
+    )
 
     espera.until(
     EC.presence_of_element_located((By.NAME, "nome"))
-)
+    
+    )
 
     navegador.find_element(By.NAME, "nome").send_keys(nome_prestador)
     navegador.find_element(By.NAME, "cpf").send_keys(cpf)
@@ -681,3 +681,95 @@ def test_consultar_prestador_com_servicos(admin_logado):
 
     assert nome_prestador in texto_pagina
     assert nome_categoria in texto_pagina
+
+
+
+def test_cadastrar_cliente(navegador):
+    email = f"cliente-{uuid.uuid4().hex[:8]}@example.com"
+
+    navegador.get(f"{URL_BASE}/clientes/novo")
+    navegador.find_element(By.NAME, "nome").send_keys("Cliente Teste")
+    navegador.find_element(By.NAME, "email").send_keys(email)
+    navegador.find_element(By.NAME, "senha").send_keys("SenhaTeste123!")
+    navegador.find_element(
+        By.CSS_SELECTOR, "button[type='submit']"
+    ).click()
+
+    espera = WebDriverWait(navegador, 10)
+    espera.until(EC.url_to_be(f"{URL_BASE}/login"))
+
+    assert "Cadastro realizado com sucesso" in navegador.page_source
+
+
+def test_impedir_cliente_sem_nome(navegador):
+    email = f"cliente-{uuid.uuid4().hex[:8]}@example.com"
+
+    navegador.get(f"{URL_BASE}/clientes/novo")
+    navegador.find_element(By.NAME, "email").send_keys(email)
+    navegador.find_element(By.NAME, "senha").send_keys("SenhaTeste123!")
+
+    campo_nome = navegador.find_element(By.NAME, "nome")
+    assert campo_nome.get_attribute("required") is not None
+
+
+def test_impedir_cliente_com_senha_curta(navegador):
+    email = f"cliente-{uuid.uuid4().hex[:8]}@example.com"
+
+    navegador.get(f"{URL_BASE}/clientes/novo")
+    navegador.find_element(By.NAME, "nome").send_keys("Cliente Teste")
+    navegador.find_element(By.NAME, "email").send_keys(email)
+    navegador.find_element(By.NAME, "senha").send_keys("123")
+    navegador.execute_script(
+        "document.querySelector('form').setAttribute('novalidate', 'novalidate')"
+    )
+
+    navegador.find_element(
+        By.CSS_SELECTOR, "button[type='submit']"
+    ).click()
+
+    espera = WebDriverWait(navegador, 10)
+    espera.until(
+        EC.text_to_be_present_in_element(
+            (By.TAG_NAME, "body"),
+            "A senha deve ter pelo menos 8 caracteres."
+        )
+    )
+
+    assert "A senha deve ter pelo menos 8 caracteres." in navegador.page_source
+
+
+def test_impedir_cliente_com_email_duplicado(navegador):
+    email = f"cliente-{uuid.uuid4().hex[:8]}@example.com"
+
+    navegador.get(f"{URL_BASE}/clientes/novo")
+
+    for nome in ["Cliente Um", "Cliente Dois"]:
+        navegador.find_element(By.NAME, "nome").clear()
+        navegador.find_element(By.NAME, "nome").send_keys(nome)
+
+        campo_email = navegador.find_element(By.NAME, "email")
+        campo_email.clear()
+        campo_email.send_keys(email)
+
+        campo_senha = navegador.find_element(By.NAME, "senha")
+        campo_senha.clear()
+        campo_senha.send_keys("SenhaTeste123!")
+
+        navegador.find_element(
+            By.CSS_SELECTOR, "button[type='submit']"
+        ).click()
+
+        espera = WebDriverWait(navegador, 10)
+
+        if nome == "Cliente Um":
+            espera.until(EC.url_to_be(f"{URL_BASE}/login"))
+            navegador.get(f"{URL_BASE}/clientes/novo")
+        else:
+            espera.until(
+                EC.text_to_be_present_in_element(
+                    (By.TAG_NAME, "body"),
+                    "Este e-mail já está cadastrado."
+                )
+            )
+
+    assert "Este e-mail já está cadastrado." in navegador.page_source

@@ -1,0 +1,201 @@
+
+{% extends "base.html" %}
+
+{% block titulo %}Início | ChamaAí{% endblock %}
+
+{% block conteudo %}
+
+<style>
+    .hero {
+        text-align: center;
+        padding: 45px 20px;
+        background: #e8f1fa;
+        border-radius: 10px;
+    }
+
+    .hero h2 {
+        color: #145da0;
+        font-size: 32px;
+        margin-bottom: 15px;
+    }
+
+    .hero p {
+        font-size: 17px;
+        line-height: 1.6;
+        max-width: 650px;
+        margin: 0 auto 25px;
+    }
+
+    .botoes {
+        display: flex;
+        justify-content: center;
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+
+    .botao-secundario {
+        background: #fff;
+        color: #145da0;
+        border: 1px solid #145da0;
+    }
+
+    .secao {
+        margin-top: 35px;
+    }
+
+    .secao h2 {
+        color: #145da0;
+        text-align: center;
+        margin-bottom: 20px;
+    }
+
+    .cartoes {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 15px;
+    }
+
+    .cartao {
+        background: #f4f6f8;
+        padding: 20px;
+        border-radius: 8px;
+        text-align: center;
+    }
+
+    .cartao h3 {
+        color: #145da0;
+        margin-top: 0;
+    }
+
+    .chamada {
+        background: #145da0;
+        color: white;
+        padding: 30px 20px;
+        margin-top: 35px;
+        border-radius: 10px;
+        text-align: center;
+    }
+
+    .chamada .botao {
+        background: white;
+        color: #145da0;
+        margin-top: 10px;
+    }
+</style>
+
+<section class="hero">
+    <h2>Precisou de um serviço? ChamaAí!</h2>
+
+    <p>
+        Encontre profissionais para atender às suas necessidades.
+        No ChamaAí, clientes podem encontrar prestadores de serviços
+        de maneira simples e prática.
+    </p>
+
+    <div class="botoes">
+        <a href="{{ url_for('novo_cliente') }}" class="botao">
+            Criar conta
+        </a>
+
+        <a href="{{ url_for('login') }}" class="botao botao-secundario">
+            Fazer login
+        </a>
+    </div>
+</section>
+
+<section class="secao">
+    <h2>Como funciona?</h2>
+
+    <div class="cartoes">
+        <div class="cartao">
+            <h3>1. Encontre</h3>
+            <p>
+                Explore as categorias e conheça os profissionais
+                disponíveis na plataforma.
+            </p>
+        </div>
+
+        <div class="cartao">
+            <h3>2. Solicite</h3>
+            <p>
+                Após entrar na sua conta, registre uma solicitação
+                informando o serviço de que precisa.
+            </p>
+        </div>
+
+        <div class="cartao">
+            <h3>3. Acompanhe</h3>
+            <p>
+                Acompanhe o andamento do atendimento e consulte
+                as informações do serviço.
+            </p>
+        </div>
+
+        <div class="cartao">
+            <h3>4. Avalie</h3>
+            <p>
+                Depois da conclusão, avalie o profissional
+                que realizou o atendimento.
+            </p>
+        </div>
+    </div>
+</section>
+
+<section class="secao">
+    <h2>Para quem é o ChamaAí?</h2>
+
+    <div class="cartoes">
+        <div class="cartao">
+            <h3>Clientes</h3>
+            <p>
+                Encontre profissionais, solicite serviços
+                e acompanhe seus atendimentos.
+            </p>
+
+            <a href="{{ url_for('novo_cliente') }}" class="botao">
+                Cadastrar como cliente
+            </a>
+        </div>
+
+        <div class="cartao">
+            <h3>Prestadores</h3>
+            <p>
+                Cadastre seus serviços e tenha a oportunidade
+                de receber novas solicitações.
+            </p>
+
+            <a href="{{ url_for('novo_prestador') }}" class="botao">
+                Cadastrar como prestador
+            </a>
+        </div>
+    </div>
+</section>
+
+<section class="secao">
+    <h2>Conheça a plataforma</h2>
+
+    <div class="botoes">
+        <a href="{{ url_for('listar_categorias') }}" class="botao">
+            Ver categorias
+        </a>
+
+        <a href="{{ url_for('listar_prestadores') }}" class="botao botao-secundario">
+            Ver prestadores
+        </a>
+    </div>
+</section>
+
+<section class="chamada">
+    <h2>Faça parte do ChamaAí!</h2>
+
+    <p>
+        Crie sua conta e aproveite as funcionalidades da plataforma.
+    </p>
+
+    <a href="{{ url_for('novo_cliente') }}" class="botao">
+        Começar agora
+    </a>
+</section>
+
+{% endblock %}
+```

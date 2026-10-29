@@ -169,6 +169,50 @@ def login():
     return render_template("login.html")
 
 
+@app.route("/clientes/novo", methods=["GET", "POST"])
+def novo_cliente():
+    if request.method == "POST":
+        nome = request.form.get("nome", "").strip()
+        email = request.form.get("email", "").strip().lower()
+        senha = request.form.get("senha", "")
+
+        if not nome or not email or not senha:
+            flash("Preencha todos os campos obrigatórios.", "erro")
+            return render_template("clientes.html")
+
+        if len(senha) < 8:
+            flash("A senha deve ter pelo menos 8 caracteres.", "erro")
+            return render_template("clientes.html")
+
+        db = get_db()
+
+        usuario_existente = db.execute(
+            "SELECT id FROM usuarios WHERE email = ?",
+            (email,)
+        ).fetchone()
+
+        if usuario_existente:
+            flash("Este e-mail já está cadastrado.", "erro")
+            return render_template("clientes.html")
+
+        senha_hash = generate_password_hash(senha)
+
+        db.execute(
+            """
+            INSERT INTO usuarios (nome, email, senha_hash, tipo)
+            VALUES (?, ?, ?, 'cliente')
+            """,
+            (nome, email, senha_hash)
+        )
+        db.commit()
+
+        flash("Cadastro realizado com sucesso! Faça login.", "sucesso")
+        return redirect(url_for("login"))
+
+    return render_template("clientes.html")
+
+
+
 @app.route("/logout", methods=["POST"])
 @login_required
 def logout():
@@ -179,7 +223,7 @@ def logout():
 
 @app.route("/")
 def inicio():
-    return render_template("index.html")
+    return render_template("inicio.html")
 
 
 @app.route("/categorias")
@@ -420,6 +464,8 @@ def listar_prestadores():
 
 @app.route("/prestadores/novo", methods=["GET", "POST"])
 def novo_prestador():
+    print(">>> ENTROU NA ROTA NOVO_PRESTADOR")
+    print(">>> MÉTODO:", request.method)
     db = get_db()
 
     categorias = db.execute("""
@@ -428,6 +474,7 @@ def novo_prestador():
         WHERE ativo = 1
         ORDER BY nome
     """).fetchall()
+
 
     if request.method == "POST":
         nome = request.form.get("nome", "").strip()
