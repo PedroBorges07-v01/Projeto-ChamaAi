@@ -435,11 +435,12 @@ def novo_prestador():
         email = request.form.get("email", "").strip().lower()
         telefone = request.form.get("telefone", "").strip()
         especialidade = request.form.get("especialidade", "").strip()
+        senha = request.form.get("senha", "")
 
         categorias_selecionadas = request.form.getlist("categorias")
 
-        if not nome or not cpf or not email:
-            flash("Nome, CPF e e-mail são obrigatórios.", "erro")
+        if not nome or not cpf or not email or not senha:
+            flash("Nome, CPF, e-mail e senha são obrigatórios.", "erro")
             return render_template(
                 "prestadores.html",
                 prestadores=[],
@@ -488,7 +489,54 @@ def novo_prestador():
                 categorias_selecionadas=categorias_selecionadas
             )
 
+        
         try:
+            prestador_existente = db.execute("""
+                SELECT id
+                FROM prestadores
+                WHERE cpf = ? OR email = ?
+            """, (cpf, email)).fetchone()
+
+            usuario_existente = db.execute("""
+                SELECT id
+                FROM usuarios
+                WHERE email = ?
+            """, (email,)).fetchone()
+
+            if prestador_existente:
+                flash(
+                    "Já existe um prestador com esse CPF ou e-mail.",
+                    "erro"
+                )
+                return render_template(
+                    "prestadores.html",
+                    prestadores=[],
+                    modo="novo",
+                    nome=nome,
+                    cpf=cpf,
+                    email=email,
+                    telefone=telefone,
+                    especialidade=especialidade,
+                    categorias=categorias,
+                    categorias_selecionadas=categorias_selecionadas
+                )
+
+            if usuario_existente:
+                flash("Este e-mail já está cadastrado.", "erro")
+                return render_template(
+                    "prestadores.html",
+                    prestadores=[],
+                    modo="novo",
+                    nome=nome,
+                    cpf=cpf,
+                    email=email,
+                    telefone=telefone,
+                    especialidade=especialidade,
+                    categorias=categorias,
+                    categorias_selecionadas=categorias_selecionadas
+                )
+
+            # Cria o registro profissional
             cursor = db.execute("""
                 INSERT INTO prestadores
                 (nome, cpf, email, telefone, especialidade)
@@ -497,6 +545,16 @@ def novo_prestador():
 
             prestador_id = cursor.lastrowid
 
+            # Cria a conta de acesso com a senha protegida
+            senha_hash = generate_password_hash(senha)
+
+            db.execute("""
+                INSERT INTO usuarios
+                (nome, email, senha_hash, tipo)
+                VALUES (?, ?, ?, 'prestador')
+            """, (nome, email, senha_hash))
+
+            # Associa as categorias selecionadas
             for categoria_id in set(ids_selecionados):
                 db.execute("""
                     INSERT INTO prestador_servicos

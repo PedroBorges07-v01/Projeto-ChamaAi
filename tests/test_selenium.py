@@ -330,6 +330,9 @@ def test_cadastrar_prestador(navegador):
     navegador.find_element(By.NAME, "email").send_keys(
         f"{uuid.uuid4().hex[:8]}@example.com"
     )
+    navegador.find_element(By.NAME, "senha").send_keys(
+        "SenhaTeste123!"
+    )
     navegador.find_element(By.NAME, "telefone").send_keys("31999999999")
     navegador.find_element(By.NAME, "especialidade").send_keys("Eletrica")
 
@@ -364,6 +367,9 @@ def test_impedir_prestador_duplicado(navegador):
     navegador.find_element(By.NAME, "email").send_keys(
         f"{uuid.uuid4().hex[:8]}@example.com"
     )
+    navegador.find_element(By.NAME, "senha").send_keys(
+        "SenhaTeste123!"
+    )
     navegador.find_element(By.NAME, "telefone").send_keys("")
     navegador.find_element(By.NAME, "especialidade").send_keys("Pintura")
 
@@ -371,11 +377,27 @@ def test_impedir_prestador_duplicado(navegador):
         By.CSS_SELECTOR, "button[type='submit']"
     ).click()
 
-    print("URL após cadastro:", navegador.current_url)
-    print("Página após cadastro:", navegador.find_element(
-        By.TAG_NAME, "body"
-    ).text)
+    espera.until(
+        lambda driver: driver.execute_script(
+            "return document.readyState"
+        ) == "complete"
+    )
 
+    print("URL após segunda tentativa:", navegador.current_url)
+    print(
+        "Página após segunda tentativa:",
+        navegador.execute_script(
+            "return document.body.innerText"
+    )
+)
+
+    print("URL após cadastro:", navegador.current_url)
+    print(
+        "Página após cadastro:",
+        navegador.execute_script(
+            "return document.body.innerText"
+    )
+)
     # Tenta cadastrar outro prestador com o mesmo CPF
     navegador.get(f"{URL_BASE}/prestadores/novo")
 
@@ -385,6 +407,9 @@ def test_impedir_prestador_duplicado(navegador):
     navegador.find_element(By.NAME, "cpf").send_keys(cpf_duplicado)
     navegador.find_element(By.NAME, "email").send_keys(
         f"{uuid.uuid4().hex[:8]}@example.com"
+    )
+    navegador.find_element(By.NAME, "senha").send_keys(
+        "SenhaTeste123!"
     )
     navegador.find_element(By.NAME, "telefone").send_keys("")
     navegador.find_element(By.NAME, "especialidade").send_keys("Pintura")
@@ -582,3 +607,77 @@ def test_ativar_categoria_inexistente(admin_logado):
     assert "erro" not in resultado
     assert resultado["status"] == 200
     assert "Categoria não encontrada." in resultado["texto"]
+
+
+
+def test_consultar_prestador_com_servicos(admin_logado):
+    navegador = admin_logado
+    espera = WebDriverWait(navegador, 10)
+
+    sufixo = uuid.uuid4().hex[:6]
+    nome_categoria = f"Categoria Prestador {sufixo}"
+    nome_prestador = f"Prestador Consulta {sufixo}"
+    cpf = f"111.{uuid.uuid4().hex[:3]}.{uuid.uuid4().hex[:3]}-44"
+    email = f"prestador-{sufixo}@example.com"
+
+    # Cadastra uma categoria para associar ao prestador
+    navegador.get(f"{URL_BASE}/categorias/nova")
+    navegador.find_element(By.ID, "nome").send_keys(nome_categoria)
+    navegador.find_element(By.NAME, "descricao").send_keys(
+        "Categoria para teste de consulta do prestador"
+    )
+    navegador.find_element(
+        By.CSS_SELECTOR, "button[type='submit']"
+    ).click()
+
+    # Abre o formulário de cadastro do prestador
+    navegador.get(f"{URL_BASE}/prestadores/novo")
+
+    espera.until(
+    EC.presence_of_element_located((By.NAME, "nome"))
+)
+
+    navegador.find_element(By.NAME, "nome").send_keys(nome_prestador)
+    navegador.find_element(By.NAME, "cpf").send_keys(cpf)
+    navegador.find_element(By.NAME, "email").send_keys(email)
+    navegador.find_element(By.NAME, "senha").send_keys(
+        "SenhaTeste123!"
+    )
+
+    # Seleciona a categoria de serviço
+    checkbox = espera.until(
+        EC.presence_of_element_located((
+            By.XPATH,
+            f"//input[@name='categorias' and "
+            f"following-sibling::text()[contains(., '{nome_categoria}')]]"
+        ))
+    )
+    checkbox.click()
+
+    navegador.find_element(
+        By.CSS_SELECTOR, "button[type='submit']"
+    ).click()
+
+    # Abre a listagem e consulta o prestador cadastrado
+    navegador.get(f"{URL_BASE}/prestadores")
+    linha = espera.until(
+        EC.presence_of_element_located((
+            By.XPATH,
+            f"//tr[td[contains(., '{nome_prestador}')]]"
+        ))
+    )
+    linha.find_element(
+        By.XPATH, ".//a[contains(., 'Consultar')]"
+    ).click()
+
+    # Confirma os dados e o serviço na página de detalhes
+    espera.until(
+        EC.text_to_be_present_in_element(
+            (By.TAG_NAME, "body"),
+            nome_categoria
+        )
+    )
+    texto_pagina = navegador.find_element(By.TAG_NAME, "body").text
+
+    assert nome_prestador in texto_pagina
+    assert nome_categoria in texto_pagina

@@ -83,6 +83,20 @@
     <label for="email">E-mail *</label>
     <input id="email" name="email" type="email" maxlength="150"
            required value="{{ email if email is defined else '' }}">
+    {% if modo == "novo" %}
+    <div class="campo">
+      <label for="senha">Senha</label>
+      <input
+        type="password"
+        id="senha"
+        name="senha"
+        minlength="8"
+        required
+        autocomplete="new-password"
+      >
+      <small>A senha deve ter pelo menos 8 caracteres.</small>
+    </div>
+    {% endif %}
 
     <label for="telefone">Telefone</label>
     <input id="telefone" name="telefone" type="tel" maxlength="20"
