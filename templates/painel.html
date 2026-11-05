@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+
+{% block titulo %}Painel | ChamaAí{% endblock %}
+
+{% block conteudo %}
+<h2>Painel {{ current_user.tipo }}</h2>
+<p>Olá, {{ current_user.nome }}. Você está na área de {{ current_user.tipo }}.</p>
+
+{% if current_user.tipo == "admin" %}
+    <div class="grade">
+        <div class="cartao">
+            <h3>{{ resumo.clientes }}</h3>
+            <p>Clientes</p>
+            <a class="botao" href="{{ url_for('listar_clientes') }}">Gerenciar</a>
+        </div>
+        <div class="cartao">
+            <h3>{{ resumo.prestadores }}</h3>
+            <p>Prestadores</p>
+            <a class="botao" href="{{ url_for('listar_prestadores') }}">Gerenciar</a>
+        </div>
+        <div class="cartao">
+            <h3>{{ resumo.servicos }}</h3>
+            <p>Serviços</p>
+            <a class="botao" href="{{ url_for('listar_servicos') }}">Gerenciar</a>
+        </div>
+        <div class="cartao">
+            <h3>{{ resumo.categorias }}</h3>
+            <p>Categorias</p>
+            <a class="botao" href="{{ url_for('listar_categorias') }}">Gerenciar</a>
+        </div>
+        <div class="cartao">
+            <h3>{{ resumo.solicitacoes }}</h3>
+            <p>Solicitações</p>
+            <a class="botao" href="{{ url_for('listar_solicitacoes') }}">Ver todas</a>
+        </div>
+    </div>
+
+{% elif current_user.tipo == "prestador" %}
+    {% if not prestador %}
+        <p>Não encontramos um cadastro profissional vinculado a esta conta.</p>
+    {% else %}
+        <div class="grade">
+            <div class="cartao">
+                <h3>Perfil profissional</h3>
+                <p>{{ prestador.especialidade or "Especialidade não informada" }}</p>
+                <a class="botao" href="{{ url_for('perfil') }}">Editar perfil</a>
+            </div>
+            <div class="cartao">
+                <h3>{{ servicos|length }}</h3>
+                <p>Serviços oferecidos</p>
+                <a class="botao" href="{{ url_for('listar_servicos') }}">Gerenciar serviços</a>
+            </div>
+            <div class="cartao">
+                <h3>{{ solicitacoes|length }}</h3>
+                <p>Solicitações recebidas</p>
+                <a class="botao" href="{{ url_for('listar_solicitacoes') }}">Abrir solicitações</a>
+            </div>
+        </div>
+    {% endif %}
+
+{% else %}
+    <div class="grade">
+        <div class="cartao">
+            <h3>Meu perfil</h3>
+            <p>Atualize seus dados pessoais.</p>
+            <a class="botao" href="{{ url_for('perfil') }}">Editar perfil</a>
+        </div>
+        <div class="cartao">
+            <h3>Pesquisar</h3>
+            <p>Encontre serviços e prestadores.</p>
+            <a class="botao" href="{{ url_for('listar_servicos') }}">Ver serviços</a>
+        </div>
+        <div class="cartao">
+            <h3>{{ solicitacoes|length }}</h3>
+            <p>Solicitações em acompanhamento</p>
+            <a class="botao" href="{{ url_for('listar_solicitacoes') }}">Acompanhar</a>
+        </div>
+    </div>
+
+    {% if servicos %}
+        <h3>Serviços disponíveis</h3>
+        <div class="grade">
+            {% for servico in servicos %}
+                <div class="cartao">
+                    <h3>{{ servico.titulo }}</h3>
+                    <p>{{ servico.categoria_nome }} • {{ servico.prestador_nome }}</p>
+                    <a class="botao" href="{{ url_for('consultar_servico', servico_id=servico.id) }}">Ver detalhes</a>
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+{% endif %}
+{% endblock %}

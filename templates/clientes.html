@@ -1,37 +1,122 @@
-
 {% extends "base.html" %}
 
+{% block titulo %}Clientes | ChamaAí{% endblock %}
+
 {% block conteudo %}
-<h1>Cadastro de cliente</h1>
+{% if modo == "listar" %}
+    <h2>Clientes</h2>
+    <p>
+        <a class="botao" href="{{ url_for('novo_cliente') }}">Cadastrar cliente</a>
+    </p>
+    {% if clientes %}
+        <div class="tabela-responsiva">
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Nome</th>
+                        <th>E-mail</th>
+                        <th>Cidade</th>
+                        <th>Status</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for cliente in clientes %}
+                        <tr>
+                            <td>{{ cliente.id }}</td>
+                            <td>{{ cliente.nome }}</td>
+                            <td>{{ cliente.email }}</td>
+                            <td>{{ cliente.cidade or "-" }}</td>
+                            <td>
+                                {% if cliente.ativo %}
+                                    Ativo
+                                {% else %}
+                                    <span class="inativo">Inativo</span>
+                                {% endif %}
+                            </td>
+                            <td class="acoes">
+                                <a href="{{ url_for('consultar_cliente', cliente_id=cliente.id) }}">Consultar</a>
+                                {% if cliente.ativo %}
+                                    | <a href="{{ url_for('editar_cliente', cliente_id=cliente.id) }}">Editar</a>
+                                    |
+                                    <form method="POST" action="{{ url_for('desativar_cliente', cliente_id=cliente.id) }}"
+                                          onsubmit="return confirm('Deseja desativar este cliente?');">
+                                        <button type="submit">Desativar</button>
+                                    </form>
+                                {% else %}
+                                    |
+                                    <form method="POST" action="{{ url_for('ativar_cliente', cliente_id=cliente.id) }}"
+                                          onsubmit="return confirm('Deseja reativar este cliente?');">
+                                        <button type="submit">Ativar</button>
+                                    </form>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <p>Nenhum cliente cadastrado ainda.</p>
+    {% endif %}
 
-<form method="POST" action="{{ url_for('novo_cliente') }}">
-    <label for="nome">Nome completo</label>
-    <input
-        type="text"
-        id="nome"
-        name="nome"
-        required
-    >
+{% elif modo == "novo" or modo == "editar" %}
+    {% if modo == "novo" %}
+        <h1>Cadastro de cliente</h1>
+        {% set acao = url_for('novo_cliente') %}
+    {% else %}
+        <h1>Editar cliente</h1>
+        {% set acao = url_for('editar_cliente', cliente_id=cliente.id) %}
+    {% endif %}
 
-    <label for="email">E-mail</label>
-    <input
-        type="email"
-        id="email"
-        name="email"
-        required
-    >
+    <form method="POST" action="{{ acao }}">
+        <label for="nome">Nome completo</label>
+        <input type="text" id="nome" name="nome" required
+               value="{{ nome if nome is defined else '' }}">
 
-    <label for="senha">Senha</label>
-    <input
-        type="password"
-        id="senha"
-        name="senha"
-        minlength="8"
-        required
-    >
+        <label for="email">E-mail</label>
+        <input type="email" id="email" name="email" required
+               value="{{ email if email is defined else '' }}">
 
-    <button type="submit">Cadastrar</button>
-</form>
+        {% if modo == "novo" %}
+            <label for="senha">Senha</label>
+            <input type="password" id="senha" name="senha" minlength="8" required>
+        {% endif %}
 
-<p>Já tem uma conta? <a href="{{ url_for('login') }}">Faça login</a>.</p>
+        <label for="telefone">Telefone</label>
+        <input type="tel" id="telefone" name="telefone"
+               value="{{ telefone if telefone is defined else '' }}">
+
+        <label for="cidade">Cidade</label>
+        <input type="text" id="cidade" name="cidade"
+               value="{{ cidade if cidade is defined else '' }}">
+
+        <button type="submit">{% if modo == "novo" %}Cadastrar{% else %}Salvar{% endif %}</button>
+        {% if current_user.is_authenticated and current_user.tipo == "admin" %}
+            <a class="botao botao-secundario" href="{{ url_for('listar_clientes') }}">Cancelar</a>
+        {% endif %}
+    </form>
+
+    {% if modo == "novo" and not current_user.is_authenticated %}
+        <p>Já tem uma conta? <a href="{{ url_for('login') }}">Faça login</a>.</p>
+    {% endif %}
+
+{% elif modo == "consultar" %}
+    <h2>Detalhes do cliente</h2>
+    <p><strong>ID:</strong> {{ cliente.id }}</p>
+    <p><strong>Nome:</strong> {{ cliente.nome }}</p>
+    <p><strong>E-mail:</strong> {{ cliente.email }}</p>
+    <p><strong>Telefone:</strong> {{ cliente.telefone or "Não informado" }}</p>
+    <p><strong>Cidade:</strong> {{ cliente.cidade or "Não informada" }}</p>
+    <p>
+        <strong>Status:</strong>
+        {% if cliente.ativo %}Ativo{% else %}Inativo{% endif %}
+    </p>
+    <p><strong>Data de criação:</strong> {{ cliente.data_criacao }}</p>
+    <a class="botao" href="{{ url_for('listar_clientes') }}">Voltar</a>
+    {% if cliente.ativo %}
+        <a class="botao" href="{{ url_for('editar_cliente', cliente_id=cliente.id) }}">Editar</a>
+    {% endif %}
+{% endif %}
 {% endblock %}

@@ -1,90 +1,99 @@
 # STATUS REPORT — Projeto ChamaAí
 
 **Projeto:** ChamaAí — Marketplace de Serviços  
-**Data do relatório:** 27/10/2026  
-**Responsável:** Pedro Henrique Borges   
-**Versão do relatório:** 1.0
+**Marco:** Release 02  
+**Data do relatório:** 04/11/2026  
+**Responsável indicado no relatório anterior:** Pedro Henrique Borges  
+**Versão do relatório:** 2.0  
+**Relatório anterior:** 27/10/2026, versão 1.0
 
-## 1. Resumo executivo
+## 1. Introdução e revisão de marco
 
-O projeto ChamaAí tem como objetivo desenvolver uma aplicação web para gerenciar categorias de serviços e prestadores. A aplicação foi desenvolvida utilizando Python, Flask, SQLite, HTML e CSS.
+A Release 01 entregou os CRUDs de categorias e prestadores, login inicial e um cadastro público de cliente. O relatório de 27/10/2026 registrava 11 testes pytest e 1 teste Selenium aprovados. Em 28/10/2026, o arquivo `registro_testes.md` registrou 15 testes pytest, com controle de acesso administrativo ainda pendente.
 
-Até a data deste relatório, os dois módulos CRUD — categorias e prestadores — foram implementados. Também foram desenvolvidos testes automatizados com pytest e um teste de interface utilizando Selenium e Google Chrome.
+A Release 02 mantém a mesma aplicação Flask e o mesmo SQLite. Foram acrescentados o CRUD de clientes, o CRUD de serviços oferecidos, painéis por perfil, solicitações e a restrição das operações administrativas.
 
-Os testes executados apresentaram resultados positivos. O projeto também possui controle de versão com Git, incluindo commits e uma tag para a baseline inicial.
+## 2. Itens revisados
 
-## 2. Situação geral do projeto
+### Cronograma
 
-| Área | Situação | Observação |
+O cronograma da Release 01 não tinha datas de início e fim. As únicas datas já escritas no projeto são 27/10/2026 (status report) e 28/10/2026 (testes do RF31). As atividades da Release 02 executadas nesta continuidade estão datadas em 04/11/2026. Não há medição de horas.
+
+### Orçamento
+
+Não há orçamento, custo real nem custo orçado nos arquivos do projeto. Não é possível comparar previsto e realizado.
+
+### Recursos humanos
+
+O único nome registrado é Pedro Henrique Borges, como responsável do relatório de 27/10/2026. Não há alocação, carga horária nem equipe adicional documentada.
+
+### Comunicação
+
+Os registros existentes são `cronograma.md`, `registro_testes.md`, `registro_bugs.md` e este status report. Não há ata, canal ou ferramenta de comunicação configurada no repositório.
+
+### Riscos
+
+- A baseline Git citada em 27/10/2026 (`baseline-v1.0`) não estava presente no diretório auditado em 04/11/2026.
+- Não existe instância de Mantis ou Bugzilla no projeto.
+- Os indicadores de valor agregado não podem ser calculados sem orçamento e sem percentuais planejados.
+- A senha de administrador de desenvolvimento não está versionada. O comando `flask criar-admin` continua sendo o meio de criar essa conta no banco local.
+
+## 3. Acompanhamento de ações corretivas
+
+| Ação vinda da Release 01 | Situação em 04/11/2026 |
+|---|---|
+| Preencher datas reais do cronograma | Parcial. Entraram só as datas que já existiam e a data desta execução. Horas continuam não medidas. |
+| Configurar ferramenta de defeitos | Não havia servidor. Os dois defeitos reproduzidos foram registrados em `registro_bugs.md`. |
+| Ampliar testes de interface | Concluída nesta execução: 25 testes Selenium e 8 testes de CRUD/permissão. |
+| Confirmar a baseline | A tag antiga não foi encontrada. A baseline da Release 02 é a tag criada neste fechamento, se o commit for aceito pelo repositório. |
+| Controle de acesso administrativo | Concluída. Cliente e prestador não gerenciam o CRUD administrativo. |
+
+Defeitos corrigidos nesta continuidade: BUG-01 e BUG-02, descritos em `registro_bugs.md`. Ambos apareceram na primeira execução Selenium de 04/11/2026 (20 aprovados, 5 reprovados) e deixaram de falhar na execução seguinte.
+
+## 4. Pendências do período
+
+- Publicar os defeitos em Mantis ou Bugzilla quando a disciplina informar a ferramenta e o acesso.
+- Recuperar ou reconstruir o histórico Git da Release 01, se ele existir em outro computador. Neste diretório ele não estava.
+- Informar orçamento, valor planejado e valor agregado para calcular SPI, CPI, TAC e EAC.
+- Medir a duração real das atividades.
+
+## 5. Parecer sobre o projeto
+
+O marco funcional da Release 02 está implementado na aplicação existente: quatro CRUDs com persistência SQLite, três perfis, login e bloqueio de rotas. A verificação desta data foi a suíte automatizada, não uma declaração sem execução.
+
+O parecer de gerenciamento é parcial. O produto avançou; a linha de base de custo e o histórico Git anterior não estão disponíveis para auditoria.
+
+## 6. Pontos de sucesso e pontos de atenção
+
+**Sucesso**
+
+- CRUDs de clientes, prestadores, serviços e categorias operando sobre o banco real.
+- Login direciona cliente, prestador e administrador ao painel do próprio perfil.
+- Em 04/11/2026, 33 testes passaram depois das correções (8 de CRUD/permissão e 25 Selenium).
+
+**Atenção**
+
+- Sem Mantis/Bugzilla acessível, o rastreamento externo continua pendente.
+- Sem orçamento, os índices de valor agregado ficam sem cálculo.
+- A primeira execução Selenium reprovou 5 testes. A causa foi corrigida, mas mostra que a suíte depende de seletores específicos por causa do botão Sair.
+
+## 7. Análise de valor agregado
+
+Não há, no projeto, BAC, PV, EV ou AC. Por isso os índices abaixo não foram estimados.
+
+| Indicador | Fórmula usada na disciplina | Resultado |
 |---|---|---|
-| Desenvolvimento | Concluído para os dois CRUDs | Funcionalidades implementadas e verificadas |
-| Testes automatizados | Aprovado | 11 testes com pytest passaram |
-| Teste de interface | Aprovado | 1 teste Selenium passou |
-| Controle de versão | Em andamento contínuo | Repositório Git configurado e commits realizados |
-| Baseline de configuração | Parcialmente documentada | Existe uma tag inicial; verificar se representa a versão final exigida |
-| Registro de testes | Preparado | Arquivo `registro_testes.md` criado |
-| Cronograma | Preparado | Arquivo `cronograma.md`; datas reais ainda precisam ser preenchidas |
-| Registro de defeitos | Pendente | Ferramenta de rastreamento ainda não configurada |
-| Relatório de status | Elaborado | Este documento |
+| SPI | EV / PV | Não calculado. PV e EV ausentes. |
+| CPI | EV / AC | Não calculado. EV e AC ausentes. |
+| TAC | Tempo previsto / SPI, quando aplicável | Não calculado. Não há duração prevista nem SPI. |
+| EAC | BAC / CPI, quando aplicável | Não calculado. Não há BAC nem CPI. |
 
-## 3. Atividades realizadas
+## 8. Verificação executada em 04/11/2026
 
-1. Preparação do ambiente de desenvolvimento em Python.
-2. Implementação do banco de dados SQLite.
-3. Desenvolvimento do CRUD de categorias.
-4. Desenvolvimento do CRUD de prestadores.
-5. Implementação de testes automatizados com pytest.
-6. Execução dos testes automatizados, com 11 aprovações.
-7. Instalação e configuração do Selenium.
-8. Execução de teste de cadastro de categoria pelo Google Chrome, com aprovação.
-9. Configuração do Git e criação de commits.
-10. Preparação dos registros de testes e do cronograma.
+Comando final, no ambiente `venv` do projeto:
 
-## 4. Resultados dos testes
+`pytest tests/test_selenium.py tests/test_crud.py --tb=line`
 
-| Tipo de teste | Quantidade | Aprovados | Reprovados |
-|---|---:|---:|---:|
-| Testes automatizados com pytest | 11 | 11 | 0 |
-| Testes de interface com Selenium | 1 | 1 | 0 |
-| **Total** | **12** | **12** | **0** |
+Resultado: 33 aprovados, 0 reprovados, 56,88 segundos.
 
-O teste Selenium verificou o cadastro de uma categoria pelo navegador e confirmou que o novo registro apareceu na página.
-
-Os resultados acima representam os testes executados até o momento. Eles não garantem, isoladamente, a ausência de defeitos em todas as funcionalidades.
-
-## 5. Gerenciamento de configuração
-
-O projeto utiliza Git para controle de versão. Foram criados commits para a implementação inicial e para os testes automatizados.
-
-Existe uma tag chamada `baseline-v1.0`, associada à baseline inicial do projeto. Como os testes e documentos foram adicionados posteriormente, deve-se confirmar se a baseline exigida pelo trabalho precisa ser atualizada para representar uma versão integrada mais recente.
-
-## 6. Defeitos e problemas conhecidos
-
-Até o momento, não foram relatados defeitos confirmados nos testes executados.
-
-O registro de defeitos em uma ferramenta específica ainda está pendente. Caso sejam encontrados defeitos durante novos testes, eles deverão ser documentados com descrição, passos para reprodução, resultado esperado, resultado obtido e prioridade.
-
-## 7. Riscos e pontos de atenção
-
-- **Cobertura de testes:** os testes atuais não cobrem necessariamente todos os fluxos dos dois CRUDs.
-- **Rastreamento de defeitos:** ainda é necessário definir e utilizar uma ferramenta de registro, conforme os requisitos da disciplina.
-- **Cronograma:** as datas planejadas e reais precisam ser preenchidas e comparadas.
-- **Baseline:** é necessário confirmar a versão que deverá ser identificada como baseline de configuração.
-- **Documentação:** os registros precisam ser revisados e mantidos sincronizados com o estado real do projeto.
-
-## 8. Próximas atividades
-
-1. Completar e validar o cronograma com as datas reais.
-2. Configurar uma ferramenta de rastreamento de defeitos, caso exigida.
-3. Ampliar os testes de interface e validar outros fluxos relevantes.
-4. Revisar a baseline de configuração e registrar a versão integrada.
-5. Verificar o estado do Git e confirmar que todos os documentos estão versionados.
-6. Revisar este relatório antes da entrega.
-
-## 9. Conclusão
-
-O projeto apresenta progresso consistente: os dois CRUDs estão implementados, os testes executados foram aprovados e o controle de versão está configurado.
-
-As principais pendências estão relacionadas à finalização da documentação de gerenciamento, à validação do cronograma, ao registro de defeitos em ferramenta apropriada e à confirmação da baseline de configuração exigida pela disciplina.
-
-**Status geral:** Desenvolvimento funcional implementado; documentação de gerenciamento em finalização.
+A execução anterior, só da suíte Selenium, teve 20 aprovados e 5 reprovados. Esses 5 casos estão no registro de bugs.

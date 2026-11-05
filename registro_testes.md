@@ -51,3 +51,12 @@ O conjunto de testes automatizados dos CRUDs apresentou 11 testes aprovados. O t
 - Tratamento de categoria inexistente.
 
 **Conclusão:** os testes automatizados executados passaram. O controle de acesso administrativo permanece pendente de implementação e validação.
+
+## Release 02 — execução de 04/11/2026
+
+**Comando:** `pytest tests/test_selenium.py tests/test_crud.py --tb=line`  
+**Ambiente:** `venv` do projeto, Chrome 156 em modo headless, servidor de teste em porta local.
+
+**Primeira execução só do Selenium:** 20 aprovados e 5 reprovados. Os defeitos estão em `registro_bugs.md`.
+
+**Execução final, depois da correção:** 33 aprovados e 0 reprovados, em 56,88 segundos. Esse total reúne 8 testes de CRUD e permissão com 25 testes Selenium de login, permissões e dos quatro CRUDs.

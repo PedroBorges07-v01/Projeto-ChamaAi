@@ -4,13 +4,16 @@
 {% block conteudo %}
 {% if modo == "listar" %}
   <h2>Prestadores de serviço</h2>
+  {% if not current_user.is_authenticated or current_user.tipo in ["admin", "cliente"] %}
   <p>
     <a class="botao" href="{{ url_for('novo_prestador') }}">
       Cadastrar prestador
     </a>
   </p>
+  {% endif %}
 
   {% if prestadores %}
+    <div class="tabela-responsiva">
     <table>
       <thead>
         <tr>
@@ -32,31 +35,34 @@
               <a href="{{ url_for('consultar_prestador', prestador_id=p.id) }}">
                 Consultar
               </a>
-              {% if p.ativo %}
-              
-                | <a href="{{ url_for('editar_prestador', prestador_id=p.id) }}">
-                  Editar
-                </a>
-                |
-                <form method="POST"
-                    action="{{ url_for('desativar_prestador', prestador_id=p.id) }}"
-                    onsubmit="return confirm('Deseja desativar este prestador?');">
-                  <button type="submit">Desativar</button>
-                </form>
-              {% else %}
-                |
-                <form method="POST"
-                    action="{{ url_for('ativar_prestador', prestador_id=p.id) }}"
-                    onsubmit="return confirm('Deseja reativar este prestador?');">
-                  <button type="submit">Reativar</button>
-                </form>
+              {% if current_user.is_authenticated and (current_user.tipo == "admin" or (current_user.tipo == "prestador" and current_user.email == p.email)) %}
+                {% if p.ativo %}
+                  | <a href="{{ url_for('editar_prestador', prestador_id=p.id) }}">
+                    Editar
+                  </a>
+                  {% if current_user.tipo == "admin" %}
+                  |
+                  <form method="POST"
+                      action="{{ url_for('desativar_prestador', prestador_id=p.id) }}"
+                      onsubmit="return confirm('Deseja desativar este prestador?');">
+                    <button type="submit">Desativar</button>
+                  </form>
+                  {% endif %}
+                {% elif current_user.tipo == "admin" %}
+                  |
+                  <form method="POST"
+                      action="{{ url_for('ativar_prestador', prestador_id=p.id) }}"
+                      onsubmit="return confirm('Deseja reativar este prestador?');">
+                    <button type="submit">Reativar</button>
+                  </form>
+                {% endif %}
               {% endif %}
-
             </td>
           </tr>
         {% endfor %}
       </tbody>
     </table>
+    </div>
   {% else %}
     <p>Nenhum prestador cadastrado ainda.</p>
   {% endif %}
@@ -105,32 +111,28 @@
     <label for="especialidade">Especialidade</label>
     <input id="especialidade" name="especialidade" type="text" maxlength="100"
            value="{{ especialidade if especialidade is defined else '' }}">
-    
-    
-<fieldset>
-  <legend>Serviços oferecidos</legend>
 
-  {% if categorias %}
-    {% for categoria in categorias %}
-      <label>
-        <input
-          type="checkbox"
-          name="categorias"
-          value="{{ categoria.id }}"
-          {% if categoria.id|string in categorias_selecionadas %}checked{% endif %}
-        >
-        {{ categoria.nome }}
-        {% if not categoria.ativo %}
-          (inativa)
-        {% endif %}
-      </label>
-    {% endfor %}
-  {% else %}
-    <p>Não há categorias disponíveis para seleção.</p>
-  {% endif %}
-</fieldset>
-
-
+    <fieldset>
+      <legend>Serviços oferecidos</legend>
+      {% if categorias %}
+        {% for categoria in categorias %}
+          <label>
+            <input
+              type="checkbox"
+              name="categorias"
+              value="{{ categoria.id }}"
+              {% if categoria.id|string in categorias_selecionadas %}checked{% endif %}
+            >
+            {{ categoria.nome }}
+            {% if not categoria.ativo %}
+              (inativa)
+            {% endif %}
+          </label>
+        {% endfor %}
+      {% else %}
+        <p>Não há categorias disponíveis para seleção.</p>
+      {% endif %}
+    </fieldset>
 
     <button type="submit">Salvar</button>
     <a class="botao" href="{{ url_for('listar_prestadores') }}">Cancelar</a>
@@ -140,7 +142,9 @@
   <h2>Detalhes do prestador</h2>
   <p><strong>ID:</strong> {{ prestador.id }}</p>
   <p><strong>Nome:</strong> {{ prestador.nome }}</p>
-  <p><strong>CPF:</strong> {{ prestador.cpf }}</p>
+  {% if current_user.is_authenticated and current_user.tipo == "admin" %}
+    <p><strong>CPF:</strong> {{ prestador.cpf }}</p>
+  {% endif %}
   <p><strong>E-mail:</strong> {{ prestador.email }}</p>
   <p><strong>Telefone:</strong> {{ prestador.telefone or "Não informado" }}</p>
   <p><strong>Especialidade:</strong> {{ prestador.especialidade or "Não informada" }}</p>
@@ -154,11 +158,24 @@
   {% else %}
     <p>Nenhuma categoria de serviço vinculada.</p>
   {% endif %}
+  {% if catalogo %}
+    <p><strong>Catálogo de serviços:</strong></p>
+    <ul>
+      {% for item in catalogo %}
+        <li>
+          <a href="{{ url_for('consultar_servico', servico_id=item.id) }}">
+            {{ item.titulo }}
+          </a>
+          — {{ item.categoria_nome }}
+        </li>
+      {% endfor %}
+    </ul>
+  {% endif %}
   <p><strong>Status:</strong> {% if prestador.ativo %}Ativo{% else %}Inativo{% endif %}</p>
   <p><strong>Data de criação:</strong> {{ prestador.data_criacao }}</p>
 
   <a class="botao" href="{{ url_for('listar_prestadores') }}">Voltar</a>
-  {% if prestador.ativo %}
+  {% if prestador.ativo and current_user.is_authenticated and (current_user.tipo == "admin" or current_user.email == prestador.email) %}
     <a class="botao" href="{{ url_for('editar_prestador', prestador_id=prestador.id) }}">
       Editar
     </a>
