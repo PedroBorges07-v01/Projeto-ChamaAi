@@ -1,88 +1,108 @@
+
 {% extends "base.html" %}
 
-{% block titulo %}Início | ChamaAí{% endblock %}
+{% block titulo %}ChamaAí — Precisou? Chama aí.{% endblock %}
 
 {% block conteudo %}
-<section class="hero">
-    <h2>Precisou de um serviço? ChamaAí!</h2>
-    <p>
-        Encontre profissionais para atender às suas necessidades.
-        No ChamaAí, clientes podem encontrar prestadores de serviços
-        de maneira simples e prática.
-    </p>
-    <div class="botoes">
-        {% if current_user.is_authenticated %}
-            <a href="{{ url_for('painel') }}" class="botao">Ir para o painel</a>
-        {% else %}
-            <a href="{{ url_for('novo_cliente') }}" class="botao">Criar conta</a>
-            <a href="{{ url_for('login') }}" class="botao botao-secundario">Fazer login</a>
-        {% endif %}
-    </div>
-</section>
+<div class="landing">
 
-<section>
-    <h2>Como funciona?</h2>
-    <div class="grade">
-        <div class="cartao">
-            <h3>1. Encontre</h3>
-            <p>Explore as categorias e conheça os profissionais disponíveis na plataforma.</p>
-        </div>
-        <div class="cartao">
-            <h3>2. Solicite</h3>
-            <p>Após entrar na sua conta, registre um pedido com o tipo de serviço, a descrição e uma foto.</p>
-        </div>
-        <div class="cartao">
-            <h3>3. Acompanhe</h3>
-            <p>Acompanhe o andamento do atendimento e consulte as informações do serviço.</p>
-        </div>
-        <div class="cartao">
-            <h3>4. Avalie</h3>
-            <p>Depois da conclusão, avalie o profissional que realizou o atendimento.</p>
-        </div>
-    </div>
-</section>
+    <section class="lp-hero">
+        <div class="lp-sol" aria-hidden="true"></div>
+        <div class="wrap lp-hero-grid">
+            <div>
+                <h2>Precisou?<br>Chama aí.</h2>
+                <p>Eletricistas, encanadores, diaristas e muito mais. Peça o serviço e receba o prestador certo na sua porta.</p>
 
-<section>
-    <h2>Para quem é o ChamaAí?</h2>
-    <div class="grade">
-        <div class="cartao">
-            <h3>Clientes</h3>
-            <p>Encontre profissionais, solicite serviços e acompanhe seus atendimentos.</p>
-            <a href="{{ url_for('novo_cliente') }}" class="botao">Cadastrar como cliente</a>
-        </div>
-        <div class="cartao">
-            <h3>Prestadores</h3>
-            <p>Cadastre-se e receba pedidos de clientes para aceitar ou recusar.</p>
-            <a href="{{ url_for('novo_prestador') }}" class="botao">Cadastrar como prestador</a>
-        </div>
-        <div class="cartao">
-            <h3>Administração</h3>
-            <p>Gerencie clientes, prestadores, categorias e pedidos em um único sistema.</p>
-        </div>
-    </div>
-</section>
+                <form class="lp-busca" method="GET" action="{{ url_for('listar_categorias') }}">
+                    <input type="text" name="q" placeholder="O que você precisa? Ex.: instalar chuveiro" aria-label="Buscar serviço">
+                    <button type="submit">Buscar serviço</button>
+                </form>
 
-<section>
-    <h2>Conheça a plataforma</h2>
-    <div class="grade">
-        <div class="cartao">
-            <h3>{{ totais.categorias }}</h3>
-            <p>Categorias ativas</p>
-        </div>
-        <div class="cartao">
-            <h3>{{ totais.prestadores }}</h3>
-            <p>Prestadores ativos</p>
-        </div>
-    </div>
-    <div class="botoes" style="margin-top: 20px;">
-        <a href="{{ url_for('listar_categorias') }}" class="botao">Ver categorias</a>
-        <a href="{{ url_for('listar_prestadores') }}" class="botao botao-secundario">Ver prestadores</a>
-    </div>
-</section>
+                <div class="lp-chips">
+                    <a class="botao lp-chip" href="{{ url_for('listar_categorias') }}">Elétrica</a>
+                    <a class="botao lp-chip" href="{{ url_for('listar_categorias') }}">Hidráulica</a>
+                    <a class="botao lp-chip" href="{{ url_for('listar_categorias') }}">Limpeza</a>
+                    <a class="botao lp-chip" href="{{ url_for('listar_categorias') }}">Reformas</a>
+                </div>
+            </div>
 
-<section class="chamada">
-    <h2>Faça parte do ChamaAí!</h2>
-    <p>Crie sua conta e aproveite as funcionalidades da plataforma.</p>
-    <a href="{{ url_for('novo_cliente') }}" class="botao">Começar agora</a>
-</section>
+            <div class="lp-visual" aria-hidden="true">
+                <div class="lp-flutua">
+                    <svg class="ico" viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4h6v3H9zM9 12h6M9 16h4"/></svg>
+                    <div><strong>Orçamento recebido</strong><small>Instalação de chuveiro</small></div>
+                </div>
+
+                <div class="lp-flutua">
+                    <svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg>
+                    <div><strong>Prestador a caminho</strong><small>Chega em 20 minutos</small></div>
+                </div>
+
+                <div class="lp-flutua">
+                    <svg class="ico" viewBox="0 0 24 24"><path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/></svg>
+                    <div><strong>Serviço avaliado</strong><small>5 estrelas</small></div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="lp-secao">
+        <div class="wrap">
+            <h3>Do pedido ao serviço feito</h3>
+            <p>Três passos, sem ligação e sem enrolação.</p>
+
+            <div class="lp-passos">
+                <div class="lp-passo">
+                    <b>1</b>
+                    <h4>Escolha o serviço</h4>
+                    <p>Pesquise por categoria e veja os prestadores disponíveis.</p>
+                </div>
+
+                <div class="lp-passo">
+                    <b>2</b>
+                    <h4>Faça a solicitação</h4>
+                    <p>Descreva o que precisa e envie o pedido em poucos cliques.</p>
+                </div>
+
+                <div class="lp-passo">
+                    <b>3</b>
+                    <h4>Acompanhe tudo</h4>
+                    <p>Veja o andamento no seu painel até o serviço ser concluído.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="lp-secao">
+        <div class="wrap">
+            <h3>O que você procura?</h3>
+            <p>Toque em uma categoria para ver os serviços.</p>
+
+            <div class="lp-cats">
+                <a class="botao lp-cat" href="{{ url_for('listar_categorias') }}"><span>⚡</span>Elétrica</a>
+                <a class="botao lp-cat" href="{{ url_for('listar_categorias') }}"><span>🔧</span>Hidráulica</a>
+                <a class="botao lp-cat" href="{{ url_for('listar_categorias') }}"><span>🧹</span>Limpeza</a>
+                <a class="botao lp-cat" href="{{ url_for('listar_categorias') }}"><span>🎨</span>Pintura</a>
+                <a class="botao lp-cat" href="{{ url_for('listar_categorias') }}"><span>🌿</span>Jardinagem</a>
+                <a class="botao lp-cat" href="{{ url_for('listar_categorias') }}"><span>✨</span>Ver todas</a>
+            </div>
+        </div>
+    </section>
+
+    <section class="lp-cta-secao">
+        <div class="wrap">
+            <div class="lp-cta">
+                <div>
+                    <h3>Pronto para chamar?</h3>
+                    <p>Crie sua conta e peça seu primeiro serviço hoje.</p>
+                </div>
+
+                <div class="botoes">
+                    <a class="botao" href="{{ url_for('novo_cliente') }}">Criar conta</a>
+                    <a class="botao botao-secundario" href="{{ url_for('login') }}">Já tenho conta</a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+</div>
 {% endblock %}
