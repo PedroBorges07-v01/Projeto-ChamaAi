@@ -58,6 +58,12 @@
                                             <button type="submit">Ativar</button>
                                         </form>
                                     {% endif %}
+                                    |
+                                    <form method="POST"
+                                          action="{{ url_for('remover_categoria', categoria_id=categoria.id) }}"
+                                          onsubmit="return confirm('Deseja REMOVER definitivamente esta categoria? Esta ação não pode ser desfeita.');">
+                                        <button type="submit">Remover</button>
+                                    </form>
                                 {% endif %}
                             </td>
                         </tr>

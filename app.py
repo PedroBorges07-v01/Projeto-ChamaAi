@@ -1,8 +1,19 @@
 from functools import wraps
+import os
 import sqlite3
+import uuid
 
 import click
-from flask import Flask, flash, redirect, render_template, request, url_for
+from flask import (
+    Flask,
+    abort,
+    flash,
+    redirect,
+    render_template,
+    request,
+    send_from_directory,
+    url_for,
+)
 from flask_login import (
     LoginManager,
     UserMixin,
@@ -19,6 +30,8 @@ from database import get_db, init_app
 app = Flask(__name__)
 app.config["SECRET_KEY"] = "chave-desenvolvimento-local"
 app.config["TESTING"] = False
+app.config["MAX_CONTENT_LENGTH"] = 5 * 1024 * 1024  # 5 MB por envio
+app.config["UPLOAD_FOLDER"] = os.path.join(app.instance_path, "uploads")
 
 login_manager = LoginManager()
 login_manager.login_view = "login"
@@ -126,19 +139,6 @@ def pode_gerenciar_prestador(prestador):
     if prestador["usuario_id"] is not None:
         return str(prestador["usuario_id"]) == current_user.id
     return prestador["email"] == current_user.email
-
-
-def pode_gerenciar_servico(servico):
-    if not current_user.is_authenticated:
-        return False
-    if current_user.tipo == "admin":
-        return True
-    prestador = obter_prestador_atual()
-    return (
-        prestador is not None
-        and servico is not None
-        and servico["prestador_id"] == prestador["id"]
-    )
 
 
 def sincronizar_usuario_prestador(db, prestador, nome, email, ativo=None):
@@ -297,9 +297,6 @@ def inicio():
         "prestadores": db.execute(
             "SELECT COUNT(*) AS total FROM prestadores WHERE ativo = 1"
         ).fetchone()["total"],
-        "servicos": db.execute(
-            "SELECT COUNT(*) AS total FROM servicos WHERE ativo = 1"
-        ).fetchone()["total"],
     }
     return render_template("inicio.html", totais=totais)
 
@@ -317,78 +314,20 @@ def painel():
             "prestadores": db.execute(
                 "SELECT COUNT(*) AS total FROM prestadores"
             ).fetchone()["total"],
-            "servicos": db.execute(
-                "SELECT COUNT(*) AS total FROM servicos"
-            ).fetchone()["total"],
             "categorias": db.execute(
                 "SELECT COUNT(*) AS total FROM categorias"
             ).fetchone()["total"],
-            "solicitacoes": db.execute(
-                "SELECT COUNT(*) AS total FROM solicitacoes"
+            "pedidos": db.execute(
+                "SELECT COUNT(*) AS total FROM pedidos"
             ).fetchone()["total"],
         }
         return render_template("painel.html", resumo=resumo)
 
     if current_user.tipo == "prestador":
         prestador = obter_prestador_atual(db)
-        servicos = []
-        solicitacoes = []
-        if prestador:
-            servicos = db.execute(
-                """
-                SELECT s.*, c.nome AS categoria_nome
-                FROM servicos s
-                JOIN categorias c ON c.id = s.categoria_id
-                WHERE s.prestador_id = ?
-                ORDER BY s.titulo
-                """,
-                (prestador["id"],),
-            ).fetchall()
-            solicitacoes = db.execute(
-                """
-                SELECT sol.*, s.titulo AS servico_titulo, u.nome AS cliente_nome
-                FROM solicitacoes sol
-                JOIN servicos s ON s.id = sol.servico_id
-                JOIN usuarios u ON u.id = sol.cliente_usuario_id
-                WHERE sol.prestador_id = ?
-                ORDER BY sol.data_criacao DESC
-                """,
-                (prestador["id"],),
-            ).fetchall()
-        return render_template(
-            "painel.html",
-            prestador=prestador,
-            servicos=servicos,
-            solicitacoes=solicitacoes,
-        )
+        return render_template("painel.html", prestador=prestador)
 
-    solicitacoes = db.execute(
-        """
-        SELECT sol.*, s.titulo AS servico_titulo, p.nome AS prestador_nome
-        FROM solicitacoes sol
-        JOIN servicos s ON s.id = sol.servico_id
-        JOIN prestadores p ON p.id = sol.prestador_id
-        WHERE sol.cliente_usuario_id = ?
-        ORDER BY sol.data_criacao DESC
-        """,
-        (current_user.id,),
-    ).fetchall()
-    servicos = db.execute(
-        """
-        SELECT s.*, p.nome AS prestador_nome, c.nome AS categoria_nome
-        FROM servicos s
-        JOIN prestadores p ON p.id = s.prestador_id
-        JOIN categorias c ON c.id = s.categoria_id
-        WHERE s.ativo = 1 AND p.ativo = 1
-        ORDER BY s.titulo
-        LIMIT 8
-        """
-    ).fetchall()
-    return render_template(
-        "painel.html",
-        solicitacoes=solicitacoes,
-        servicos=servicos,
-    )
+    return render_template("painel.html")
 
 
 @app.route("/perfil", methods=["GET", "POST"])
@@ -760,6 +699,41 @@ def ativar_cliente(cliente_id):
     return redirect(url_for("listar_clientes"))
 
 
+@app.route("/clientes/<int:cliente_id>/remover", methods=["POST"])
+@admin_required
+def remover_cliente(cliente_id):
+    db = get_db()
+    cliente = db.execute(
+        """
+        SELECT id FROM usuarios
+        WHERE id = ? AND tipo = 'cliente'
+        """,
+        (cliente_id,),
+    ).fetchone()
+
+    if cliente is None:
+        flash("Cliente não encontrado.", "erro")
+    elif str(cliente_id) == current_user.id:
+        flash("Não é possível remover a própria conta.", "erro")
+    else:
+        total = db.execute(
+            "SELECT COUNT(*) FROM pedidos WHERE cliente_usuario_id = ?",
+            (cliente_id,),
+        ).fetchone()[0]
+        if total:
+            flash(
+                "Este cliente possui pedidos registrados e não pode "
+                "ser removido. Use a opção Desativar.",
+                "erro",
+            )
+        else:
+            db.execute("DELETE FROM clientes WHERE usuario_id = ?", (cliente_id,))
+            db.execute("DELETE FROM usuarios WHERE id = ?", (cliente_id,))
+            db.commit()
+            flash("Cliente removido com sucesso.", "sucesso")
+    return redirect(url_for("listar_clientes"))
+
+
 @app.route("/categorias")
 def listar_categorias():
     db = get_db()
@@ -958,6 +932,39 @@ def ativar_categoria(categoria_id):
     return redirect(url_for("listar_categorias"))
 
 
+@app.route("/categorias/<int:categoria_id>/remover", methods=["POST"])
+@admin_required
+def remover_categoria(categoria_id):
+    db = get_db()
+    categoria = db.execute(
+        "SELECT id FROM categorias WHERE id = ?",
+        (categoria_id,),
+    ).fetchone()
+
+    if categoria is None:
+        flash("Categoria não encontrada.", "erro")
+    else:
+        total = db.execute(
+            "SELECT COUNT(*) FROM pedidos WHERE categoria_id = ?",
+            (categoria_id,),
+        ).fetchone()[0]
+        if total:
+            flash(
+                "Esta categoria possui pedidos cadastrados e não pode "
+                "ser removida. Use a opção Desativar.",
+                "erro",
+            )
+        else:
+            db.execute(
+                "DELETE FROM prestador_servicos WHERE categoria_id = ?",
+                (categoria_id,),
+            )
+            db.execute("DELETE FROM categorias WHERE id = ?", (categoria_id,))
+            db.commit()
+            flash("Categoria removida com sucesso.", "sucesso")
+    return redirect(url_for("listar_categorias"))
+
+
 @app.route("/prestadores")
 def listar_prestadores():
     db = get_db()
@@ -1120,33 +1127,11 @@ def consultar_prestador(prestador_id):
         """,
         (prestador_id,),
     ).fetchall()
-    servicos = db.execute(
-        """
-        SELECT s.*, c.nome AS categoria_nome
-        FROM servicos s
-        JOIN categorias c ON c.id = s.categoria_id
-        WHERE s.prestador_id = ?
-          AND (s.ativo = 1 OR ? = 1)
-        ORDER BY s.titulo
-        """,
-        (
-            prestador_id,
-            1
-            if current_user.is_authenticated
-            and (
-                current_user.tipo == "admin"
-                or pode_gerenciar_prestador(prestador)
-            )
-            else 0,
-        ),
-    ).fetchall()
-
     return render_template(
         "prestadores.html",
         prestadores=[],
         prestador=prestador,
         servicos=servicos_area,
-        catalogo=servicos,
         modo="consultar",
     )
 
@@ -1348,515 +1333,282 @@ def ativar_prestador(prestador_id):
     return redirect(url_for("listar_prestadores"))
 
 
-@app.route("/servicos")
-def listar_servicos():
+@app.route("/prestadores/<int:prestador_id>/remover", methods=["POST"])
+@admin_required
+def remover_prestador(prestador_id):
     db = get_db()
-    termo = request.args.get("q", "").strip()
-    categoria_id = request.args.get("categoria_id", "").strip()
-    filtros = []
-    params = []
+    prestador = db.execute(
+        "SELECT * FROM prestadores WHERE id = ?",
+        (prestador_id,),
+    ).fetchone()
 
-    admin = current_user.is_authenticated and current_user.tipo == "admin"
-    prestador = obter_prestador_atual(db)
-
-    if admin:
-        sql = """
-            SELECT s.*, p.nome AS prestador_nome, c.nome AS categoria_nome
-            FROM servicos s
-            JOIN prestadores p ON p.id = s.prestador_id
-            JOIN categorias c ON c.id = s.categoria_id
-            WHERE 1 = 1
-        """
-    elif current_user.is_authenticated and current_user.tipo == "prestador" and prestador:
-        sql = """
-            SELECT s.*, p.nome AS prestador_nome, c.nome AS categoria_nome
-            FROM servicos s
-            JOIN prestadores p ON p.id = s.prestador_id
-            JOIN categorias c ON c.id = s.categoria_id
-            WHERE s.prestador_id = ?
-        """
-        params.append(prestador["id"])
+    if prestador is None:
+        flash("Prestador não encontrado.", "erro")
     else:
-        sql = """
-            SELECT s.*, p.nome AS prestador_nome, c.nome AS categoria_nome
-            FROM servicos s
-            JOIN prestadores p ON p.id = s.prestador_id
-            JOIN categorias c ON c.id = s.categoria_id
-            WHERE s.ativo = 1 AND p.ativo = 1
-        """
-
-    if termo:
-        filtros.append("(s.titulo LIKE ? OR s.descricao LIKE ? OR p.nome LIKE ?)")
-        like = f"%{termo}%"
-        params.extend([like, like, like])
-    if categoria_id:
-        filtros.append("s.categoria_id = ?")
-        params.append(categoria_id)
-    if filtros:
-        sql += " AND " + " AND ".join(filtros)
-    sql += " ORDER BY s.titulo"
-
-    servicos = db.execute(sql, params).fetchall()
-    categorias = categorias_ativas(db)
-    return render_template(
-        "servicos.html",
-        servicos=servicos,
-        categorias=categorias,
-        modo="listar",
-        termo=termo,
-        categoria_id=categoria_id,
-        prestador=prestador,
-    )
-
-
-@app.route("/servicos/novo", methods=["GET", "POST"])
-@perfil_required("prestador", "admin")
-def novo_servico():
-    db = get_db()
-    categorias = categorias_ativas(db)
-    prestadores = db.execute(
-        "SELECT id, nome FROM prestadores WHERE ativo = 1 ORDER BY nome"
-    ).fetchall()
-    prestador = obter_prestador_atual(db)
-
-    if current_user.tipo == "prestador" and prestador is None:
-        flash("Complete o cadastro profissional antes de oferecer serviços.", "erro")
-        return redirect(url_for("perfil"))
-
-    if request.method == "POST":
-        titulo = request.form.get("titulo", "").strip()
-        descricao = request.form.get("descricao", "").strip()
-        preco_raw = request.form.get("preco", "").strip()
-        categoria_sel = request.form.get("categoria_id", "").strip()
-        prestador_sel = request.form.get("prestador_id", "").strip()
-
-        if current_user.tipo == "prestador":
-            prestador_id = prestador["id"]
-        else:
-            prestador_id = prestador_sel
-
-        preco = None
-        erro = None
-        if not titulo or not categoria_sel or not prestador_id:
-            erro = "Título, categoria e prestador são obrigatórios."
-        else:
-            try:
-                categoria_id = int(categoria_sel)
-                prestador_id = int(prestador_id)
-            except ValueError:
-                erro = "Seleção inválida."
-            else:
-                if preco_raw:
-                    try:
-                        preco = float(preco_raw.replace(",", "."))
-                        if preco < 0:
-                            erro = "O preço não pode ser negativo."
-                    except ValueError:
-                        erro = "Informe um preço válido."
-
-        contexto = dict(
-            modo="novo",
-            categorias=categorias,
-            prestadores=prestadores,
-            titulo=titulo,
-            descricao=descricao,
-            preco=preco_raw,
-            categoria_id=categoria_sel,
-            prestador_id=str(prestador_id) if prestador_id else "",
-            prestador=prestador,
-        )
-        if erro:
-            flash(erro, "erro")
-            return render_template("servicos.html", **contexto)
-
-        categoria = db.execute(
-            "SELECT id FROM categorias WHERE id = ? AND ativo = 1",
-            (categoria_id,),
-        ).fetchone()
-        alvo = db.execute(
-            "SELECT id FROM prestadores WHERE id = ? AND ativo = 1",
+        total = db.execute(
+            "SELECT COUNT(*) FROM pedidos WHERE prestador_id = ?",
             (prestador_id,),
-        ).fetchone()
-        if categoria is None or alvo is None:
-            flash("Categoria ou prestador inválido.", "erro")
-            return render_template("servicos.html", **contexto)
-
-        db.execute(
-            """
-            INSERT INTO servicos
-            (prestador_id, categoria_id, titulo, descricao, preco)
-            VALUES (?, ?, ?, ?, ?)
-            """,
-            (prestador_id, categoria_id, titulo, descricao, preco),
-        )
-        db.commit()
-        flash("Serviço cadastrado com sucesso!", "sucesso")
-        return redirect(url_for("listar_servicos"))
-
-    return render_template(
-        "servicos.html",
-        modo="novo",
-        categorias=categorias,
-        prestadores=prestadores,
-        titulo="",
-        descricao="",
-        preco="",
-        categoria_id="",
-        prestador_id=str(prestador["id"]) if prestador else "",
-        prestador=prestador,
-    )
-
-
-@app.route("/servicos/<int:servico_id>")
-def consultar_servico(servico_id):
-    db = get_db()
-    servico = db.execute(
-        """
-        SELECT s.*, p.nome AS prestador_nome, p.ativo AS prestador_ativo,
-               c.nome AS categoria_nome
-        FROM servicos s
-        JOIN prestadores p ON p.id = s.prestador_id
-        JOIN categorias c ON c.id = s.categoria_id
-        WHERE s.id = ?
-        """,
-        (servico_id,),
-    ).fetchone()
-    if servico is None:
-        flash("Serviço não encontrado.", "erro")
-        return redirect(url_for("listar_servicos"))
-
-    visivel = servico["ativo"] == 1 and servico["prestador_ativo"] == 1
-    if not visivel and not pode_gerenciar_servico(servico):
-        flash("Serviço não encontrado.", "erro")
-        return redirect(url_for("listar_servicos"))
-
-    return render_template(
-        "servicos.html",
-        modo="consultar",
-        servico=servico,
-    )
-
-
-@app.route("/servicos/<int:servico_id>/editar", methods=["GET", "POST"])
-@login_required
-def editar_servico(servico_id):
-    db = get_db()
-    servico = db.execute(
-        "SELECT * FROM servicos WHERE id = ?",
-        (servico_id,),
-    ).fetchone()
-    if servico is None:
-        flash("Serviço não encontrado.", "erro")
-        return redirect(url_for("listar_servicos"))
-    if not pode_gerenciar_servico(servico):
-        flash("Acesso não autorizado para este perfil.", "erro")
-        return redirect(url_for("painel"))
-    if servico["ativo"] == 0:
-        flash("Não é possível editar um serviço desativado.", "erro")
-        return redirect(url_for("listar_servicos"))
-
-    categorias = categorias_ativas(db)
-    prestadores = db.execute(
-        "SELECT id, nome FROM prestadores WHERE ativo = 1 ORDER BY nome"
-    ).fetchall()
-    prestador = obter_prestador_atual(db)
-
-    if request.method == "POST":
-        titulo = request.form.get("titulo", "").strip()
-        descricao = request.form.get("descricao", "").strip()
-        preco_raw = request.form.get("preco", "").strip()
-        categoria_sel = request.form.get("categoria_id", "").strip()
-        prestador_id = servico["prestador_id"]
-        if current_user.tipo == "admin":
-            prestador_sel = request.form.get("prestador_id", "").strip()
-            if prestador_sel:
-                prestador_id = prestador_sel
-
-        preco = None
-        erro = None
-        if not titulo or not categoria_sel or not prestador_id:
-            erro = "Título, categoria e prestador são obrigatórios."
-        else:
-            try:
-                categoria_id = int(categoria_sel)
-                prestador_id = int(prestador_id)
-            except ValueError:
-                erro = "Seleção inválida."
-            else:
-                if preco_raw:
-                    try:
-                        preco = float(preco_raw.replace(",", "."))
-                        if preco < 0:
-                            erro = "O preço não pode ser negativo."
-                    except ValueError:
-                        erro = "Informe um preço válido."
-                else:
-                    preco = None
-
-        if erro:
-            flash(erro, "erro")
-        else:
-            db.execute(
-                """
-                UPDATE servicos
-                SET prestador_id = ?, categoria_id = ?, titulo = ?,
-                    descricao = ?, preco = ?
-                WHERE id = ?
-                """,
-                (
-                    prestador_id,
-                    categoria_id,
-                    titulo,
-                    descricao,
-                    preco,
-                    servico_id,
-                ),
+        ).fetchone()[0]
+        if total:
+            flash(
+                "Este prestador possui pedidos registrados e não pode "
+                "ser removido. Use a opção Desativar.",
+                "erro",
             )
+        else:
+            usuario = db.execute(
+                """
+                SELECT id FROM usuarios
+                WHERE tipo = 'prestador' AND (id = ? OR email = ?)
+                """,
+                (prestador["usuario_id"], prestador["email"]),
+            ).fetchone()
+
+            db.execute(
+                "DELETE FROM prestador_servicos WHERE prestador_id = ?",
+                (prestador_id,),
+            )
+            db.execute(
+                "DELETE FROM pedido_recusas WHERE prestador_id = ?",
+                (prestador_id,),
+            )
+            db.execute("DELETE FROM prestadores WHERE id = ?", (prestador_id,))
+            if usuario is not None:
+                db.execute("DELETE FROM usuarios WHERE id = ?", (usuario["id"],))
             db.commit()
-            flash("Serviço atualizado com sucesso!", "sucesso")
-            return redirect(url_for("listar_servicos"))
-
-        return render_template(
-            "servicos.html",
-            modo="editar",
-            servico=servico,
-            categorias=categorias,
-            prestadores=prestadores,
-            titulo=titulo,
-            descricao=descricao,
-            preco=preco_raw,
-            categoria_id=categoria_sel,
-            prestador_id=str(prestador_id),
-            prestador=prestador,
-        )
-
-    return render_template(
-        "servicos.html",
-        modo="editar",
-        servico=servico,
-        categorias=categorias,
-        prestadores=prestadores,
-        titulo=servico["titulo"],
-        descricao=servico["descricao"] or "",
-        preco="" if servico["preco"] is None else servico["preco"],
-        categoria_id=str(servico["categoria_id"]),
-        prestador_id=str(servico["prestador_id"]),
-        prestador=prestador,
-    )
+            flash("Prestador removido com sucesso.", "sucesso")
+    return redirect(url_for("listar_prestadores"))
 
 
-@app.route("/servicos/<int:servico_id>/desativar", methods=["POST"])
+def _extensao_imagem(dados):
+    """Identifica o tipo real da imagem pelo conteúdo (não só pelo nome)."""
+    if dados.startswith(b"\xff\xd8\xff"):
+        return ".jpg"
+    if dados.startswith(b"\x89PNG\r\n\x1a\n"):
+        return ".png"
+    if dados[:6] in (b"GIF87a", b"GIF89a"):
+        return ".gif"
+    if dados[:4] == b"RIFF" and dados[8:12] == b"WEBP":
+        return ".webp"
+    return None
+
+
+@app.errorhandler(413)
+def arquivo_muito_grande(e):
+    flash("A foto deve ter no máximo 5 MB.", "erro")
+    return redirect(url_for("novo_pedido"))
+
+
+@app.route("/pedidos")
 @login_required
-def desativar_servico(servico_id):
+def listar_pedidos():
     db = get_db()
-    servico = db.execute(
-        "SELECT * FROM servicos WHERE id = ?",
-        (servico_id,),
-    ).fetchone()
-    if servico is None:
-        flash("Serviço não encontrado.", "erro")
-    elif not pode_gerenciar_servico(servico):
-        flash("Acesso não autorizado para este perfil.", "erro")
-        return redirect(url_for("painel"))
-    elif servico["ativo"] == 0:
-        flash("Esse serviço já está desativado.", "erro")
-    else:
-        db.execute(
-            "UPDATE servicos SET ativo = 0 WHERE id = ?",
-            (servico_id,),
-        )
-        db.commit()
-        flash("Serviço desativado com sucesso.", "sucesso")
-    return redirect(url_for("listar_servicos"))
+    base_sql = """
+        SELECT p.*, c.nome AS categoria_nome, u.nome AS cliente_nome,
+               pr.nome AS prestador_nome
+        FROM pedidos p
+        JOIN categorias c ON c.id = p.categoria_id
+        JOIN usuarios u ON u.id = p.cliente_usuario_id
+        LEFT JOIN prestadores pr ON pr.id = p.prestador_id
+    """
+    ordem = " ORDER BY p.data_criacao DESC, p.id DESC"
 
-
-@app.route("/servicos/<int:servico_id>/ativar", methods=["POST"])
-@login_required
-def ativar_servico(servico_id):
-    db = get_db()
-    servico = db.execute(
-        "SELECT * FROM servicos WHERE id = ?",
-        (servico_id,),
-    ).fetchone()
-    if servico is None:
-        flash("Serviço não encontrado.", "erro")
-    elif not pode_gerenciar_servico(servico):
-        flash("Acesso não autorizado para este perfil.", "erro")
-        return redirect(url_for("painel"))
-    elif servico["ativo"] == 1:
-        flash("Esse serviço já está ativo.", "erro")
-    else:
-        db.execute(
-            "UPDATE servicos SET ativo = 1 WHERE id = ?",
-            (servico_id,),
-        )
-        db.commit()
-        flash("Serviço reativado com sucesso.", "sucesso")
-    return redirect(url_for("listar_servicos"))
-
-
-@app.route("/solicitacoes")
-@login_required
-def listar_solicitacoes():
-    db = get_db()
     if current_user.tipo == "admin":
-        solicitacoes = db.execute(
-            """
-            SELECT sol.*, s.titulo AS servico_titulo,
-                   p.nome AS prestador_nome, u.nome AS cliente_nome
-            FROM solicitacoes sol
-            JOIN servicos s ON s.id = sol.servico_id
-            JOIN prestadores p ON p.id = sol.prestador_id
-            JOIN usuarios u ON u.id = sol.cliente_usuario_id
-            ORDER BY sol.data_criacao DESC
-            """
-        ).fetchall()
+        pedidos = db.execute(base_sql + ordem).fetchall()
     elif current_user.tipo == "prestador":
         prestador = obter_prestador_atual(db)
         if prestador is None:
-            flash("Complete o cadastro profissional para ver solicitações.", "erro")
+            flash("Complete o cadastro profissional para ver pedidos.", "erro")
             return redirect(url_for("perfil"))
-        solicitacoes = db.execute(
+        pedidos = db.execute(
+            base_sql
+            + """
+            WHERE (
+                p.status = 'aberto'
+                AND p.id NOT IN (
+                    SELECT pedido_id FROM pedido_recusas WHERE prestador_id = ?
+                )
+            ) OR p.prestador_id = ?
             """
-            SELECT sol.*, s.titulo AS servico_titulo,
-                   p.nome AS prestador_nome, u.nome AS cliente_nome
-            FROM solicitacoes sol
-            JOIN servicos s ON s.id = sol.servico_id
-            JOIN prestadores p ON p.id = sol.prestador_id
-            JOIN usuarios u ON u.id = sol.cliente_usuario_id
-            WHERE sol.prestador_id = ?
-            ORDER BY sol.data_criacao DESC
-            """,
-            (prestador["id"],),
+            + ordem,
+            (prestador["id"], prestador["id"]),
         ).fetchall()
     else:
-        solicitacoes = db.execute(
-            """
-            SELECT sol.*, s.titulo AS servico_titulo,
-                   p.nome AS prestador_nome, u.nome AS cliente_nome
-            FROM solicitacoes sol
-            JOIN servicos s ON s.id = sol.servico_id
-            JOIN prestadores p ON p.id = sol.prestador_id
-            JOIN usuarios u ON u.id = sol.cliente_usuario_id
-            WHERE sol.cliente_usuario_id = ?
-            ORDER BY sol.data_criacao DESC
-            """,
+        pedidos = db.execute(
+            base_sql + " WHERE p.cliente_usuario_id = ?" + ordem,
             (current_user.id,),
         ).fetchall()
 
-    return render_template(
-        "solicitacoes.html",
-        solicitacoes=solicitacoes,
-        modo="listar",
-    )
+    return render_template("pedidos.html", modo="listar", pedidos=pedidos)
 
 
-@app.route("/solicitacoes/nova/<int:servico_id>", methods=["GET", "POST"])
+@app.route("/pedidos/novo", methods=["GET", "POST"])
 @perfil_required("cliente")
-def nova_solicitacao(servico_id):
+def novo_pedido():
     db = get_db()
-    servico = db.execute(
-        """
-        SELECT s.*, p.nome AS prestador_nome, p.ativo AS prestador_ativo,
-               c.nome AS categoria_nome
-        FROM servicos s
-        JOIN prestadores p ON p.id = s.prestador_id
-        JOIN categorias c ON c.id = s.categoria_id
-        WHERE s.id = ?
-        """,
-        (servico_id,),
-    ).fetchone()
-    if servico is None or servico["ativo"] != 1 or servico["prestador_ativo"] != 1:
-        flash("Serviço indisponível para solicitação.", "erro")
-        return redirect(url_for("listar_servicos"))
+    categorias = categorias_ativas(db)
 
     if request.method == "POST":
-        mensagem = request.form.get("mensagem", "").strip()
-        db.execute(
-            """
-            INSERT INTO solicitacoes
-            (cliente_usuario_id, servico_id, prestador_id, mensagem)
-            VALUES (?, ?, ?, ?)
-            """,
-            (current_user.id, servico_id, servico["prestador_id"], mensagem),
+        categoria_sel = request.form.get("categoria_id", "").strip()
+        descricao = request.form.get("descricao", "").strip()
+        arquivo = request.files.get("foto")
+        erros = []
+
+        categoria = None
+        if categoria_sel.isdigit():
+            categoria = db.execute(
+                "SELECT id FROM categorias WHERE id = ? AND ativo = 1",
+                (int(categoria_sel),),
+            ).fetchone()
+        if categoria is None:
+            erros.append("Selecione o tipo de serviço.")
+
+        if not descricao:
+            erros.append("Informe a descrição do serviço.")
+        elif len(descricao) > 2000:
+            erros.append("A descrição deve ter no máximo 2000 caracteres.")
+
+        dados = None
+        extensao = None
+        if arquivo is not None and arquivo.filename:
+            dados = arquivo.read()
+            extensao = _extensao_imagem(dados)
+            if extensao is None:
+                erros.append("A foto deve ser uma imagem JPG, PNG, GIF ou WEBP.")
+
+        if not erros:
+            nome_foto = None
+            if dados is not None:
+                pasta = app.config["UPLOAD_FOLDER"]
+                os.makedirs(pasta, exist_ok=True)
+                nome_foto = uuid.uuid4().hex + extensao
+                with open(os.path.join(pasta, nome_foto), "wb") as destino:
+                    destino.write(dados)
+
+            db.execute(
+                """
+                INSERT INTO pedidos
+                (cliente_usuario_id, categoria_id, descricao, foto)
+                VALUES (?, ?, ?, ?)
+                """,
+                (current_user.id, int(categoria_sel), descricao, nome_foto),
+            )
+            db.commit()
+            flash("Pedido enviado com sucesso.", "sucesso")
+            return redirect(url_for("listar_pedidos"))
+
+        for erro in erros:
+            flash(erro, "erro")
+        return render_template(
+            "pedidos.html",
+            modo="novo",
+            categorias=categorias,
+            categoria_id=categoria_sel,
+            descricao=descricao,
         )
-        db.commit()
-        flash("Solicitação enviada com sucesso.", "sucesso")
-        return redirect(url_for("listar_solicitacoes"))
 
     return render_template(
-        "solicitacoes.html",
-        modo="nova",
-        servico=servico,
-        mensagem="",
+        "pedidos.html",
+        modo="novo",
+        categorias=categorias,
+        categoria_id="",
+        descricao="",
     )
 
 
-def _obter_solicitacao(db, solicitacao_id):
-    return db.execute(
-        """
-        SELECT sol.*, s.titulo AS servico_titulo,
-               p.nome AS prestador_nome, u.nome AS cliente_nome
-        FROM solicitacoes sol
-        JOIN servicos s ON s.id = sol.servico_id
-        JOIN prestadores p ON p.id = sol.prestador_id
-        JOIN usuarios u ON u.id = sol.cliente_usuario_id
-        WHERE sol.id = ?
-        """,
-        (solicitacao_id,),
-    ).fetchone()
-
-
-@app.route("/solicitacoes/<int:solicitacao_id>/<acao>", methods=["POST"])
+@app.route("/pedidos/<int:pedido_id>/foto")
 @login_required
-def atualizar_solicitacao(solicitacao_id, acao):
+def foto_pedido(pedido_id):
     db = get_db()
-    solicitacao = _obter_solicitacao(db, solicitacao_id)
-    if solicitacao is None:
-        flash("Solicitação não encontrada.", "erro")
-        return redirect(url_for("listar_solicitacoes"))
+    pedido = db.execute(
+        "SELECT cliente_usuario_id, foto FROM pedidos WHERE id = ?",
+        (pedido_id,),
+    ).fetchone()
+    if pedido is None or not pedido["foto"]:
+        abort(404)
 
-    transicoes = {
-        "cancelar": ("cancelada", "pendente"),
-        "aceitar": ("aceita", "pendente"),
-        "recusar": ("recusada", "pendente"),
-        "concluir": ("concluida", "aceita"),
-    }
-    if acao not in transicoes:
+    dono = str(pedido["cliente_usuario_id"]) == current_user.id
+    if not (dono or current_user.tipo in ("admin", "prestador")):
+        abort(403)
+
+    resposta = send_from_directory(app.config["UPLOAD_FOLDER"], pedido["foto"])
+    resposta.headers["X-Content-Type-Options"] = "nosniff"
+    return resposta
+
+
+@app.route("/pedidos/<int:pedido_id>/<acao>", methods=["POST"])
+@login_required
+def atualizar_pedido(pedido_id, acao):
+    db = get_db()
+    pedido = db.execute(
+        "SELECT * FROM pedidos WHERE id = ?",
+        (pedido_id,),
+    ).fetchone()
+    if pedido is None:
+        flash("Pedido não encontrado.", "erro")
+        return redirect(url_for("listar_pedidos"))
+
+    if acao not in ("aceitar", "recusar", "cancelar"):
         flash("Ação inválida.", "erro")
-        return redirect(url_for("listar_solicitacoes"))
-
-    novo_status, status_atual = transicoes[acao]
-    prestador = obter_prestador_atual(db)
-    permitido = False
+        return redirect(url_for("listar_pedidos"))
 
     if acao == "cancelar":
-        permitido = (
-            current_user.tipo == "cliente"
-            and str(solicitacao["cliente_usuario_id"]) == current_user.id
+        if (
+            current_user.tipo != "cliente"
+            or str(pedido["cliente_usuario_id"]) != current_user.id
+        ):
+            flash("Acesso não autorizado para este perfil.", "erro")
+            return redirect(url_for("listar_pedidos"))
+        cursor = db.execute(
+            "UPDATE pedidos SET status = 'cancelado' "
+            "WHERE id = ? AND status = 'aberto'",
+            (pedido_id,),
         )
-    elif acao in ("aceitar", "recusar", "concluir"):
-        permitido = (
-            current_user.tipo == "prestador"
-            and prestador is not None
-            and prestador["id"] == solicitacao["prestador_id"]
-        ) or current_user.tipo == "admin"
+        db.commit()
+        if cursor.rowcount:
+            flash("Pedido cancelado.", "sucesso")
+        else:
+            flash("Este pedido não pode ser cancelado agora.", "erro")
+        return redirect(url_for("listar_pedidos"))
 
-    if not permitido:
+    prestador = obter_prestador_atual(db)
+    if (
+        current_user.tipo != "prestador"
+        or prestador is None
+        or not prestador["ativo"]
+    ):
         flash("Acesso não autorizado para este perfil.", "erro")
-        return redirect(url_for("listar_solicitacoes"))
+        return redirect(url_for("listar_pedidos"))
 
-    if solicitacao["status"] != status_atual:
-        flash("Esta solicitação não pode ser atualizada agora.", "erro")
-        return redirect(url_for("listar_solicitacoes"))
-
-    db.execute(
-        "UPDATE solicitacoes SET status = ? WHERE id = ?",
-        (novo_status, solicitacao_id),
-    )
-    db.commit()
-    flash("Solicitação atualizada com sucesso.", "sucesso")
-    return redirect(url_for("listar_solicitacoes"))
+    if acao == "aceitar":
+        # UPDATE condicional: só um prestador consegue aceitar o pedido.
+        cursor = db.execute(
+            """
+            UPDATE pedidos
+            SET status = 'aceito', prestador_id = ?
+            WHERE id = ? AND status = 'aberto'
+            """,
+            (prestador["id"], pedido_id),
+        )
+        db.commit()
+        if cursor.rowcount:
+            flash("Pedido aceito com sucesso.", "sucesso")
+        else:
+            flash("Este pedido não está mais disponível.", "erro")
+    else:
+        if pedido["status"] != "aberto":
+            flash("Este pedido não está mais disponível.", "erro")
+        else:
+            db.execute(
+                """
+                INSERT OR IGNORE INTO pedido_recusas (pedido_id, prestador_id)
+                VALUES (?, ?)
+                """,
+                (pedido_id, prestador["id"]),
+            )
+            db.commit()
+            flash("Pedido recusado. Ele não aparecerá mais para você.", "sucesso")
+    return redirect(url_for("listar_pedidos"))
 
 
 @app.route("/acesso-negado")

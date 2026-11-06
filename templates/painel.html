@@ -19,19 +19,14 @@
             <a class="botao" href="{{ url_for('listar_prestadores') }}">Gerenciar</a>
         </div>
         <div class="cartao">
-            <h3>{{ resumo.servicos }}</h3>
-            <p>Serviços</p>
-            <a class="botao" href="{{ url_for('listar_servicos') }}">Gerenciar</a>
-        </div>
-        <div class="cartao">
             <h3>{{ resumo.categorias }}</h3>
             <p>Categorias</p>
             <a class="botao" href="{{ url_for('listar_categorias') }}">Gerenciar</a>
         </div>
         <div class="cartao">
-            <h3>{{ resumo.solicitacoes }}</h3>
-            <p>Solicitações</p>
-            <a class="botao" href="{{ url_for('listar_solicitacoes') }}">Ver todas</a>
+            <h3>{{ resumo.pedidos }}</h3>
+            <p>Pedidos</p>
+            <a class="botao" href="{{ url_for('listar_pedidos') }}">Ver todos</a>
         </div>
     </div>
 
@@ -46,14 +41,9 @@
                 <a class="botao" href="{{ url_for('perfil') }}">Editar perfil</a>
             </div>
             <div class="cartao">
-                <h3>{{ servicos|length }}</h3>
-                <p>Serviços oferecidos</p>
-                <a class="botao" href="{{ url_for('listar_servicos') }}">Gerenciar serviços</a>
-            </div>
-            <div class="cartao">
-                <h3>{{ solicitacoes|length }}</h3>
-                <p>Solicitações recebidas</p>
-                <a class="botao" href="{{ url_for('listar_solicitacoes') }}">Abrir solicitações</a>
+                <h3>Pedidos de clientes</h3>
+                <p>Veja os pedidos abertos e aceite ou recuse.</p>
+                <a class="botao" href="{{ url_for('listar_pedidos') }}">Ver pedidos</a>
             </div>
         </div>
     {% endif %}
@@ -66,28 +56,15 @@
             <a class="botao" href="{{ url_for('perfil') }}">Editar perfil</a>
         </div>
         <div class="cartao">
-            <h3>Pesquisar</h3>
-            <p>Encontre serviços e prestadores.</p>
-            <a class="botao" href="{{ url_for('listar_servicos') }}">Ver serviços</a>
+            <h3>Pedir um serviço</h3>
+            <p>Descreva o que precisa e envie uma foto.</p>
+            <a class="botao" href="{{ url_for('novo_pedido') }}">Novo pedido</a>
         </div>
         <div class="cartao">
-            <h3>{{ solicitacoes|length }}</h3>
-            <p>Solicitações em acompanhamento</p>
-            <a class="botao" href="{{ url_for('listar_solicitacoes') }}">Acompanhar</a>
+            <h3>Meus pedidos</h3>
+            <p>Acompanhe os pedidos que você enviou.</p>
+            <a class="botao" href="{{ url_for('listar_pedidos') }}">Acompanhar</a>
         </div>
     </div>
-
-    {% if servicos %}
-        <h3>Serviços disponíveis</h3>
-        <div class="grade">
-            {% for servico in servicos %}
-                <div class="cartao">
-                    <h3>{{ servico.titulo }}</h3>
-                    <p>{{ servico.categoria_nome }} • {{ servico.prestador_nome }}</p>
-                    <a class="botao" href="{{ url_for('consultar_servico', servico_id=servico.id) }}">Ver detalhes</a>
-                </div>
-            {% endfor %}
-        </div>
-    {% endif %}
 {% endif %}
 {% endblock %}

@@ -29,7 +29,7 @@
         </div>
         <div class="cartao">
             <h3>2. Solicite</h3>
-            <p>Após entrar na sua conta, registre uma solicitação informando o serviço de que precisa.</p>
+            <p>Após entrar na sua conta, registre um pedido com o tipo de serviço, a descrição e uma foto.</p>
         </div>
         <div class="cartao">
             <h3>3. Acompanhe</h3>
@@ -52,12 +52,12 @@
         </div>
         <div class="cartao">
             <h3>Prestadores</h3>
-            <p>Cadastre seus serviços e tenha a oportunidade de receber novas solicitações.</p>
+            <p>Cadastre-se e receba pedidos de clientes para aceitar ou recusar.</p>
             <a href="{{ url_for('novo_prestador') }}" class="botao">Cadastrar como prestador</a>
         </div>
         <div class="cartao">
             <h3>Administração</h3>
-            <p>Gerencie clientes, prestadores, serviços e categorias em um único sistema.</p>
+            <p>Gerencie clientes, prestadores, categorias e pedidos em um único sistema.</p>
         </div>
     </div>
 </section>
@@ -73,15 +73,10 @@
             <h3>{{ totais.prestadores }}</h3>
             <p>Prestadores ativos</p>
         </div>
-        <div class="cartao">
-            <h3>{{ totais.servicos }}</h3>
-            <p>Serviços oferecidos</p>
-        </div>
     </div>
     <div class="botoes" style="margin-top: 20px;">
         <a href="{{ url_for('listar_categorias') }}" class="botao">Ver categorias</a>
         <a href="{{ url_for('listar_prestadores') }}" class="botao botao-secundario">Ver prestadores</a>
-        <a href="{{ url_for('listar_servicos') }}" class="botao botao-secundario">Ver serviços</a>
     </div>
 </section>
 

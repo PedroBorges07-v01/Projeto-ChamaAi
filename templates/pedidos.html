@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+
+{% block titulo %}Pedidos | ChamaAí{% endblock %}
+
+{% block conteudo %}
+{% if modo == "listar" %}
+    <h2>
+        {% if current_user.tipo == "prestador" %}
+            Pedidos de clientes
+        {% elif current_user.tipo == "admin" %}
+            Pedidos de serviço
+        {% else %}
+            Meus pedidos
+        {% endif %}
+    </h2>
+
+    {% if current_user.tipo == "cliente" %}
+        <p>
+            <a class="botao" href="{{ url_for('novo_pedido') }}">Pedir um serviço</a>
+        </p>
+    {% endif %}
+
+    {% if pedidos %}
+        <div class="tabela-responsiva">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Foto</th>
+                        <th>Tipo</th>
+                        <th>Descrição</th>
+                        {% if current_user.tipo != "cliente" %}
+                            <th>Cliente</th>
+                        {% endif %}
+                        <th>Status</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in pedidos %}
+                        <tr>
+                            <td>
+                                {% if item.foto %}
+                                    <a href="{{ url_for('foto_pedido', pedido_id=item.id) }}"
+                                       target="_blank" rel="noopener">
+                                        <img src="{{ url_for('foto_pedido', pedido_id=item.id) }}"
+                                             alt="Foto do pedido"
+                                             style="max-width: 100px; max-height: 80px;">
+                                    </a>
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
+                            <td>{{ item.categoria_nome }}</td>
+                            <td>{{ item.descricao }}</td>
+                            {% if current_user.tipo != "cliente" %}
+                                <td>{{ item.cliente_nome }}</td>
+                            {% endif %}
+                            <td>
+                                <span class="badge">{{ item.status }}</span>
+                                {% if item.status == "aceito" and item.prestador_nome %}
+                                    <br>por {{ item.prestador_nome }}
+                                {% endif %}
+                            </td>
+                            <td class="acoes">
+                                {% if current_user.tipo == "cliente" and item.status == "aberto" %}
+                                    <form method="POST"
+                                          action="{{ url_for('atualizar_pedido', pedido_id=item.id, acao='cancelar') }}"
+                                          onsubmit="return confirm('Cancelar este pedido?');">
+                                        <button type="submit">Cancelar</button>
+                                    </form>
+                                {% endif %}
+                                {% if current_user.tipo == "prestador" and item.status == "aberto" %}
+                                    <form method="POST"
+                                          action="{{ url_for('atualizar_pedido', pedido_id=item.id, acao='aceitar') }}">
+                                        <button type="submit">Aceitar</button>
+                                    </form>
+                                    <form method="POST"
+                                          action="{{ url_for('atualizar_pedido', pedido_id=item.id, acao='recusar') }}">
+                                        <button type="submit">Recusar</button>
+                                    </form>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <p>Nenhum pedido encontrado.</p>
+    {% endif %}
+
+{% elif modo == "novo" %}
+    <h2>Pedir um serviço</h2>
+
+    <form method="POST" action="{{ url_for('novo_pedido') }}" enctype="multipart/form-data">
+        <label for="categoria_id">Tipo de serviço *</label>
+        <select id="categoria_id" name="categoria_id" required>
+            <option value="">Selecione</option>
+            {% for categoria in categorias %}
+                <option value="{{ categoria.id }}"
+                    {% if categoria_id|string == categoria.id|string %}selected{% endif %}>
+                    {{ categoria.nome }}
+                </option>
+            {% endfor %}
+        </select>
+
+        <label for="descricao">Descrição *</label>
+        <textarea id="descricao" name="descricao" rows="5" maxlength="2000"
+                  required>{{ descricao or '' }}</textarea>
+
+        <label for="foto">Foto do serviço (JPG, PNG, GIF ou WEBP, até 5 MB)</label>
+        <input id="foto" name="foto" type="file"
+               accept="image/jpeg,image/png,image/gif,image/webp">
+
+        <button type="submit">Enviar pedido</button>
+        <a class="botao" href="{{ url_for('listar_pedidos') }}">Cancelar</a>
+    </form>
+{% endif %}
+{% endblock %}

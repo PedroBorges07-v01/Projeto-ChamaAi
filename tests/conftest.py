@@ -20,6 +20,13 @@ SENHA_CLIENTE = "SenhaTeste123!"
 EMAIL_PRESTADOR = "prestador-teste@example.com"
 SENHA_PRESTADOR = "SenhaTeste123!"
 
+# Pausa, em segundos, entre um teste e o próximo.
+# Para mudar sem editar o arquivo:  INTERVALO_ENTRE_TESTES=5 pytest
+INTERVALO_ENTRE_TESTES = float(os.environ.get("INTERVALO_ENTRE_TESTES", "2"))
+
+# Para ver o Chrome na tela:  NAVEGADOR_VISIVEL=1 pytest
+NAVEGADOR_VISIVEL = os.environ.get("NAVEGADOR_VISIVEL", "") not in ("", "0")
+
 
 def _seed(db):
     if db.execute(
@@ -134,8 +141,11 @@ def url_base(app_teste):
 
 @pytest.fixture(scope="session")
 def _navegador():
+    # Uma única janela do Chrome para a sessão inteira de testes:
+    # abre aqui e só fecha (driver.quit) depois do último teste.
     opcoes = webdriver.ChromeOptions()
-    opcoes.add_argument("--headless=new")
+    if not NAVEGADOR_VISIVEL:
+        opcoes.add_argument("--headless=new")
     opcoes.add_argument("--disable-gpu")
     opcoes.add_argument("--window-size=1280,900")
     opcoes.add_argument("--no-sandbox")
@@ -146,10 +156,15 @@ def _navegador():
 
 
 @pytest.fixture
-def navegador(_navegador):
+def navegador(request, _navegador):
+    # Reaproveita o mesmo navegador, mas começa cada teste deslogado.
     _navegador.delete_all_cookies()
     try:
         _navegador.switch_to.alert.accept()
     except Exception:
         pass
     yield _navegador
+
+    # Pausa entre os testes (não espera depois do último).
+    if request.session.items[-1] is not request.node:
+        time.sleep(INTERVALO_ENTRE_TESTES)

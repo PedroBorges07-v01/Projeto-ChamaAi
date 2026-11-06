@@ -2,7 +2,7 @@ import uuid
 
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.support.ui import Select, WebDriverWait
+from selenium.webdriver.support.ui import WebDriverWait
 
 from tests.conftest import (
     EMAIL_ADMIN,
@@ -489,46 +489,6 @@ def test_cliente_nao_acessa_admin(navegador, url_base):
 def test_login_prestador_abre_painel(navegador, url_base):
     entrar(navegador, url_base, EMAIL_PRESTADOR, SENHA_PRESTADOR)
     assert "Painel prestador" in navegador.page_source
-
-
-def test_crud_servico_no_navegador(navegador, url_base):
-    entrar(navegador, url_base, EMAIL_PRESTADOR, SENHA_PRESTADOR)
-    espera = WebDriverWait(navegador, 10)
-    titulo = f"Servico Selenium {uuid.uuid4().hex[:6]}"
-    navegador.get(f"{url_base}/servicos/novo")
-    espera.until(EC.visibility_of_element_located((By.ID, "titulo"))).send_keys(titulo)
-    Select(navegador.find_element(By.ID, "categoria_id")).select_by_visible_text("Elétrica")
-    navegador.find_element(By.ID, "descricao").send_keys("Serviço criado no teste")
-    navegador.find_element(By.ID, "preco").send_keys("150")
-    navegador.find_element(By.CSS_SELECTOR, "main form button[type='submit']").click()
-    espera.until(EC.text_to_be_present_in_element((By.TAG_NAME, "body"), titulo))
-    assert titulo in navegador.page_source
-
-    navegador.get(f"{url_base}/servicos")
-    linha = espera.until(
-        EC.presence_of_element_located((By.XPATH, f"//tr[td[contains(., '{titulo}')]]"))
-    )
-    linha.find_element(By.XPATH, ".//a[contains(@href, '/editar')]").click()
-    campo = espera.until(EC.visibility_of_element_located((By.ID, "titulo")))
-    campo.clear()
-    titulo_editado = titulo + " editado"
-    campo.send_keys(titulo_editado)
-    navegador.find_element(By.CSS_SELECTOR, "main form button[type='submit']").click()
-    espera.until(EC.text_to_be_present_in_element((By.TAG_NAME, "body"), titulo_editado))
-
-    linha = espera.until(
-        EC.presence_of_element_located(
-            (By.XPATH, f"//tr[td[contains(., '{titulo_editado}')]]")
-        )
-    )
-    navegador.execute_script("window.confirm = () => true;")
-    linha.find_element(By.XPATH, ".//button[normalize-space()='Desativar']").click()
-    espera.until(
-        EC.text_to_be_present_in_element(
-            (By.XPATH, f"//tr[td[contains(., '{titulo_editado}')]]"),
-            "Inativo",
-        )
-    )
 
 
 def test_admin_lista_e_desativa_cliente(navegador, url_base):

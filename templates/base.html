@@ -18,6 +18,9 @@
                     <div class="usuario-resumo">
                         <strong>{{ current_user.nome }}</strong><br>
                         {{ current_user.tipo|capitalize }}
+                        <form method="POST" action="{{ url_for('logout') }}">
+                            <button class="botao botao-secundario" type="submit">Sair</button>
+                        </form>
                     </div>
                 {% endif %}
             </div>
@@ -30,24 +33,17 @@
                     {% if current_user.tipo == 'admin' %}
                         <a href="{{ url_for('listar_clientes') }}">Clientes</a>
                         <a href="{{ url_for('listar_prestadores') }}">Prestadores</a>
-                        <a href="{{ url_for('listar_servicos') }}">Serviços</a>
                         <a href="{{ url_for('listar_categorias') }}">Categorias</a>
-                        <a href="{{ url_for('listar_solicitacoes') }}">Solicitações</a>
+                        <a href="{{ url_for('listar_pedidos') }}">Pedidos</a>
                     {% elif current_user.tipo == 'prestador' %}
-                        <a href="{{ url_for('listar_servicos') }}">Meus serviços</a>
-                        <a href="{{ url_for('listar_solicitacoes') }}">Solicitações recebidas</a>
+                        <a href="{{ url_for('listar_pedidos') }}">Pedidos de clientes</a>
                     {% else %}
-                        <a href="{{ url_for('listar_servicos') }}">Pesquisar serviços</a>
                         <a href="{{ url_for('listar_prestadores') }}">Prestadores</a>
-                        <a href="{{ url_for('listar_solicitacoes') }}">Minhas solicitações</a>
+                        <a href="{{ url_for('listar_pedidos') }}">Meus pedidos</a>
                     {% endif %}
-                    <form method="POST" action="{{ url_for('logout') }}">
-                        <button class="link-menu" type="submit">Sair</button>
-                    </form>
                 {% else %}
                     <a href="{{ url_for('listar_categorias') }}">Categorias</a>
                     <a href="{{ url_for('listar_prestadores') }}">Prestadores</a>
-                    <a href="{{ url_for('listar_servicos') }}">Serviços</a>
                     <a href="{{ url_for('novo_cliente') }}">Cadastro</a>
                     <a href="{{ url_for('login') }}">Login</a>
                 {% endif %}

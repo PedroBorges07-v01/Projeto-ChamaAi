@@ -56,6 +56,14 @@
                     <button type="submit">Reativar</button>
                   </form>
                 {% endif %}
+                {% if current_user.tipo == "admin" %}
+                |
+                <form method="POST"
+                      action="{{ url_for('remover_prestador', prestador_id=p.id) }}"
+                      onsubmit="return confirm('Deseja REMOVER definitivamente este prestador e a conta de acesso? Esta ação não pode ser desfeita.');">
+                    <button type="submit">Remover</button>
+                </form>
+                {% endif %}
               {% endif %}
             </td>
           </tr>
@@ -157,19 +165,6 @@
     </ul>
   {% else %}
     <p>Nenhuma categoria de serviço vinculada.</p>
-  {% endif %}
-  {% if catalogo %}
-    <p><strong>Catálogo de serviços:</strong></p>
-    <ul>
-      {% for item in catalogo %}
-        <li>
-          <a href="{{ url_for('consultar_servico', servico_id=item.id) }}">
-            {{ item.titulo }}
-          </a>
-          — {{ item.categoria_nome }}
-        </li>
-      {% endfor %}
-    </ul>
   {% endif %}
   <p><strong>Status:</strong> {% if prestador.ativo %}Ativo{% else %}Inativo{% endif %}</p>
   <p><strong>Data de criação:</strong> {{ prestador.data_criacao }}</p>

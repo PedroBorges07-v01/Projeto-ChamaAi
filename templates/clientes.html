@@ -51,6 +51,12 @@
                                         <button type="submit">Ativar</button>
                                     </form>
                                 {% endif %}
+                                |
+                                <form method="POST"
+                                      action="{{ url_for('remover_cliente', cliente_id=cliente.id) }}"
+                                      onsubmit="return confirm('Deseja REMOVER definitivamente este cliente? Esta ação não pode ser desfeita.');">
+                                    <button type="submit">Remover</button>
+                                </form>
                             </td>
                         </tr>
                     {% endfor %}

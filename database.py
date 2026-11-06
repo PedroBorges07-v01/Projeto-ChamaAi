@@ -92,36 +92,30 @@ def init_db():
     """)
 
     db.execute("""
-        CREATE TABLE IF NOT EXISTS servicos (
+        CREATE TABLE IF NOT EXISTS pedidos (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            prestador_id INTEGER NOT NULL,
+            cliente_usuario_id INTEGER NOT NULL,
             categoria_id INTEGER NOT NULL,
-            titulo TEXT NOT NULL,
-            descricao TEXT,
-            preco REAL,
-            ativo INTEGER NOT NULL DEFAULT 1,
+            descricao TEXT NOT NULL,
+            foto TEXT,
+            status TEXT NOT NULL DEFAULT 'aberto'
+                CHECK (status IN ('aberto', 'aceito', 'cancelado')),
+            prestador_id INTEGER,
             data_criacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (prestador_id) REFERENCES prestadores (id),
-            FOREIGN KEY (categoria_id) REFERENCES categorias (id)
+            FOREIGN KEY (cliente_usuario_id) REFERENCES usuarios (id),
+            FOREIGN KEY (categoria_id) REFERENCES categorias (id),
+            FOREIGN KEY (prestador_id) REFERENCES prestadores (id)
         )
     """)
 
     db.execute("""
-        CREATE TABLE IF NOT EXISTS solicitacoes (
+        CREATE TABLE IF NOT EXISTS pedido_recusas (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            cliente_usuario_id INTEGER NOT NULL,
-            servico_id INTEGER NOT NULL,
+            pedido_id INTEGER NOT NULL,
             prestador_id INTEGER NOT NULL,
-            mensagem TEXT,
-            status TEXT NOT NULL DEFAULT 'pendente'
-                CHECK (status IN (
-                    'pendente', 'aceita', 'recusada',
-                    'concluida', 'cancelada'
-                )),
-            data_criacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (cliente_usuario_id) REFERENCES usuarios (id),
-            FOREIGN KEY (servico_id) REFERENCES servicos (id),
-            FOREIGN KEY (prestador_id) REFERENCES prestadores (id)
+            FOREIGN KEY (pedido_id) REFERENCES pedidos (id),
+            FOREIGN KEY (prestador_id) REFERENCES prestadores (id),
+            UNIQUE (pedido_id, prestador_id)
         )
     """)
 
