@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+
+{% block titulo %}Relatório de Pedidos | ChamaAí{% endblock %}
+
+{% block conteudo %}
+<h2>Relatório de Pedidos</h2>
+
+<form method="GET" action="{{ url_for('relatorio_pedidos') }}" class="busca">
+    <div>
+        <label for="inicio">Data inicial</label>
+        <input type="date" id="inicio" name="inicio" value="{{ inicio }}">
+    </div>
+    <div>
+        <label for="fim">Data final</label>
+        <input type="date" id="fim" name="fim" value="{{ fim }}">
+    </div>
+    <div>
+        <label for="status">Status</label>
+        <select id="status" name="status">
+            <option value="">Todos</option>
+            <option value="aberto" {% if status == "aberto" %}selected{% endif %}>Aberto</option>
+            <option value="aceito" {% if status == "aceito" %}selected{% endif %}>Aceito</option>
+            <option value="finalizado" {% if status == "finalizado" %}selected{% endif %}>Finalizado</option>
+            <option value="cancelado" {% if status == "cancelado" %}selected{% endif %}>Cancelado</option>
+        </select>
+    </div>
+    <div>
+        <label for="categoria_id">Categoria</label>
+        <select id="categoria_id" name="categoria_id">
+            <option value="">Todas</option>
+            {% for c in categorias %}
+                <option value="{{ c.id }}"
+                    {% if categoria_id|string == c.id|string %}selected{% endif %}>
+                    {{ c.nome }}
+                </option>
+            {% endfor %}
+        </select>
+    </div>
+    <div>
+        <button type="submit">Filtrar</button>
+    </div>
+</form>
+
+<h3>Totais por status</h3>
+<div class="grade">
+    {% for t in totais %}
+        <div class="cartao">
+            <h3>{{ t.total }}</h3>
+            <p>{{ t.status|capitalize }}</p>
+        </div>
+    {% endfor %}
+</div>
+
+<h3>Pedidos</h3>
+{% if pedidos %}
+    <div class="tabela-responsiva">
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Categoria</th>
+                    <th>Cliente</th>
+                    <th>Prestador</th>
+                    <th>Status</th>
+                    <th>Data</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for p in pedidos %}
+                    <tr>
+                        <td>{{ p.id }}</td>
+                        <td>{{ p.categoria_nome }}</td>
+                        <td>{{ p.cliente_nome }}</td>
+                        <td>{{ p.prestador_nome or "-" }}</td>
+                        <td>
+                            <span class="badge
+                                {% if p.status == 'aberto' %}badge-aviso
+                                {% elif p.status == 'aceito' %}status-aceita
+                                {% elif p.status == 'finalizado' %}status-concluida
+                                {% elif p.status == 'cancelado' %}status-cancelada
+                                {% endif %}">
+                                {{ p.status|capitalize }}
+                            </span>
+                        </td>
+                        <td>{{ p.data_criacao }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+{% else %}
+    <p>Nenhum pedido encontrado com os filtros informados.</p>
+{% endif %}
+
+<p style="margin-top: 24px;">
+    <button type="button" onclick="window.print()">Imprimir / Salvar PDF</button>
+    <a class="botao botao-secundario" href="{{ url_for('relatorio_pedidos') }}">Limpar filtros</a>
+</p>
+{% endblock %}

@@ -2050,6 +2050,70 @@ def remover_conta(conta_id):
 
     return redirect(url_for("listar_contas"))
 
+@app.route("/relatorios/pedidos")
+@admin_required
+def relatorio_pedidos():
+    db = get_db()
+    inicio = request.args.get("inicio", "").strip()
+    fim = request.args.get("fim", "").strip()
+    status = request.args.get("status", "").strip()
+    categoria_id = request.args.get("categoria_id", "").strip()
+
+    where = ["1=1"]
+    params = []
+    if inicio:
+        where.append("date(p.data_criacao) >= date(?)")
+        params.append(inicio)
+    if fim:
+        where.append("date(p.data_criacao) <= date(?)")
+        params.append(fim)
+    if status:
+        where.append("p.status = ?")
+        params.append(status)
+    if categoria_id.isdigit():
+        where.append("p.categoria_id = ?")
+        params.append(int(categoria_id))
+
+    where_sql = " AND ".join(where)
+
+    pedidos = db.execute(
+        f"""
+        SELECT p.*, c.nome AS categoria_nome, u.nome AS cliente_nome,
+               pr.nome AS prestador_nome
+        FROM pedidos p
+        JOIN categorias c ON c.id = p.categoria_id
+        JOIN usuarios u ON u.id = p.cliente_usuario_id
+        LEFT JOIN prestadores pr ON pr.id = p.prestador_id
+        WHERE {where_sql}
+        ORDER BY p.data_criacao DESC
+        """,
+        params,
+    ).fetchall()
+
+    totais = db.execute(
+        f"""
+        SELECT status, COUNT(*) AS total
+        FROM pedidos p
+        WHERE {where_sql}
+        GROUP BY status
+        """,
+        params,
+    ).fetchall()
+
+    categorias = db.execute(
+        "SELECT id, nome FROM categorias ORDER BY nome"
+    ).fetchall()
+
+    return render_template(
+    "relatorio_pedidos.html",
+    pedidos=pedidos,
+    totais=totais,
+    categorias=categorias,
+    inicio=request.args.get("inicio", ""),
+    fim=request.args.get("fim", ""),
+    status=request.args.get("status", ""),
+    categoria_id=request.args.get("categoria_id", ""),
+    )
 
 if __name__ == "__main__":
     app.run(debug=True)

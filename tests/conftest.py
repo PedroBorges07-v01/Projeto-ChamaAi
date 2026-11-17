@@ -19,19 +19,20 @@ EMAIL_CLIENTE = "cliente-teste@example.com"
 SENHA_CLIENTE = "SenhaTeste123!"
 EMAIL_PRESTADOR = "prestador-teste@example.com"
 SENHA_PRESTADOR = "SenhaTeste123!"
+NOME_CATEGORIA_SEED = "Elétrica"
+
 
 # Pausa, em segundos, entre um teste e o próximo.
 # Para mudar sem editar o arquivo:  INTERVALO_ENTRE_TESTES=5 pytest
-INTERVALO_ENTRE_TESTES = float(os.environ.get("INTERVALO_ENTRE_TESTES", "2"))
+INTERVALO_ENTRE_TESTES = float(os.environ.get("INTERVALO_ENTRE_TESTES", "1"))
 
-# Para ver o Chrome na tela:  NAVEGADOR_VISIVEL=1 pytest
-NAVEGADOR_VISIVEL = os.environ.get("NAVEGADOR_VISIVEL", "") not in ("", "0")
+NAVEGADOR_HEADLESS = os.environ.get("NAVEGADOR_HEADLESS", "") not in ("", "0")
+NAVEGADOR_VISIVEL = not NAVEGADOR_HEADLESS
 
 
 def _seed(db):
     if db.execute(
-        "SELECT id FROM usuarios WHERE email = ?",
-        (EMAIL_ADMIN,),
+        "SELECT id FROM usuarios WHERE email = ?", (EMAIL_ADMIN,)
     ).fetchone() is None:
         db.execute(
             """
@@ -42,8 +43,7 @@ def _seed(db):
         )
 
     if db.execute(
-        "SELECT id FROM usuarios WHERE email = ?",
-        (EMAIL_CLIENTE,),
+        "SELECT id FROM usuarios WHERE email = ?", (EMAIL_CLIENTE,)
     ).fetchone() is None:
         cursor = db.execute(
             """
@@ -58,8 +58,7 @@ def _seed(db):
         )
 
     if db.execute(
-        "SELECT id FROM usuarios WHERE email = ?",
-        (EMAIL_PRESTADOR,),
+        "SELECT id FROM usuarios WHERE email = ?", (EMAIL_PRESTADOR,)
     ).fetchone() is None:
         cursor_u = db.execute(
             """
@@ -88,11 +87,38 @@ def _seed(db):
             ),
         )
 
-    if db.execute("SELECT id FROM categorias WHERE nome = ?", ("Elétrica",)).fetchone() is None:
+    if db.execute(
+        "SELECT id FROM categorias WHERE nome = ?", (NOME_CATEGORIA_SEED,)
+    ).fetchone() is None:
         db.execute(
             "INSERT INTO categorias (nome, descricao) VALUES (?, ?)",
-            ("Elétrica", "Serviços elétricos"),
+            (NOME_CATEGORIA_SEED, "Serviços elétricos"),
         )
+
+    # vincula o prestador de teste à categoria Elétrica (necessário para
+    # que o pedido criado pelo cliente gere notificação para o prestador)
+    prestador = db.execute(
+        "SELECT id FROM prestadores WHERE email = ?", (EMAIL_PRESTADOR,)
+    ).fetchone()
+    categoria = db.execute(
+        "SELECT id FROM categorias WHERE nome = ?", (NOME_CATEGORIA_SEED,)
+    ).fetchone()
+    if prestador and categoria:
+        db.execute(
+            """
+            INSERT OR IGNORE INTO prestador_servicos (prestador_id, categoria_id)
+            VALUES (?, ?)
+            """,
+            (prestador["id"], categoria["id"]),
+        )
+
+    # garante que o cliente de teste esteja ativo entre execuções
+    db.execute(
+        "UPDATE usuarios SET ativo = 1 WHERE email = ?", (EMAIL_CLIENTE,)
+    )
+    db.execute(
+        "UPDATE prestadores SET ativo = 1 WHERE email = ?", (EMAIL_PRESTADOR,)
+    )
 
     db.commit()
 
@@ -119,11 +145,6 @@ def app_teste(arquivo_banco):
     return app
 
 
-@pytest.fixture
-def cliente_http(app_teste):
-    return app_teste.test_client()
-
-
 @pytest.fixture(scope="session")
 def url_base(app_teste):
     sock = socket.socket()
@@ -141,8 +162,7 @@ def url_base(app_teste):
 
 @pytest.fixture(scope="session")
 def _navegador():
-    # Uma única janela do Chrome para a sessão inteira de testes:
-    # abre aqui e só fecha (driver.quit) depois do último teste.
+    # Uma única janela do Chrome para a sessão inteira de testes.
     opcoes = webdriver.ChromeOptions()
     if not NAVEGADOR_VISIVEL:
         opcoes.add_argument("--headless=new")
@@ -159,10 +179,6 @@ def _navegador():
 def navegador(request, _navegador):
     # Reaproveita o mesmo navegador, mas começa cada teste deslogado.
     _navegador.delete_all_cookies()
-    try:
-        _navegador.switch_to.alert.accept()
-    except Exception:
-        pass
     yield _navegador
 
     # Pausa entre os testes (não espera depois do último).

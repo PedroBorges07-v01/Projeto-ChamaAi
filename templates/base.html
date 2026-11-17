@@ -84,6 +84,7 @@
                         <a href="{{ url_for('listar_categorias') }}">{{ ico('categorias') }}Categorias</a>
                         <a href="{{ url_for('listar_pedidos') }}">{{ ico('solicitacoes') }}Solicitações</a>
                         <a href="{{ url_for('listar_contas') }}">{{ ico('clientes') }}Contas</a>
+                        <a href="{{ url_for('relatorio_pedidos') }}">{{ ico('painel') }}Relatórios</a>
 
                     {% elif current_user.tipo == 'prestador' %}
                         <a href="{{ url_for('listar_categorias') }}">{{ ico('servicos') }}Meus serviços</a>
