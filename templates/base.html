@@ -70,6 +70,12 @@
                 {% if current_user.is_authenticated %}
                     <a href="{{ url_for('painel') }}">{{ ico('painel') }}Painel</a>
                     <a href="{{ url_for('perfil') }}">{{ ico('perfil') }}Meu perfil</a>
+                    <a href="{{ url_for('listar_notificacoes') }}">
+                    {{ ico('chat') }}Notificações
+                    {% if notificacoes_nao_lidas %}
+                    <span class="contador-notificacoes">{{ notificacoes_nao_lidas }}</span>
+                    {% endif %}
+                    </a>
 
                     {% if current_user.tipo == 'admin' %}
                         <a href="{{ url_for('listar_clientes') }}">{{ ico('clientes') }}Clientes</a>
@@ -77,10 +83,12 @@
                         <a href="{{ url_for('listar_categorias') }}">{{ ico('servicos') }}Serviços</a>
                         <a href="{{ url_for('listar_categorias') }}">{{ ico('categorias') }}Categorias</a>
                         <a href="{{ url_for('listar_pedidos') }}">{{ ico('solicitacoes') }}Solicitações</a>
+                        <a href="{{ url_for('listar_contas') }}">{{ ico('clientes') }}Contas</a>
 
                     {% elif current_user.tipo == 'prestador' %}
                         <a href="{{ url_for('listar_categorias') }}">{{ ico('servicos') }}Meus serviços</a>
                         <a href="{{ url_for('listar_pedidos') }}">{{ ico('solicitacoes') }}Solicitações recebidas</a>
+                        <a href="{{ url_for('minhas_avaliacoes') }}">{{ ico('perfil') }}Minhas avaliações</a>
 
                     {% else %}
                         <a href="{{ url_for('listar_categorias') }}">{{ ico('servicos') }}Pesquisar serviços</a>

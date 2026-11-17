@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+
+{% block titulo %}Contas | ChamaAí{% endblock %}
+
+{% block conteudo %}
+{% if modo == "listar" %}
+    <h2>Contas cadastradas</h2>
+    <p>
+        <a class="botao" href="{{ url_for('nova_conta') }}">Adicionar conta</a>
+    </p>
+
+    {% if contas %}
+        <div class="tabela-responsiva">
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Nome</th>
+                        <th>E-mail</th>
+                        <th>Tipo</th>
+                        <th>Detalhes</th>
+                        <th>Status</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for conta in contas %}
+                        <tr>
+                            <td>{{ conta.id }}</td>
+                            <td>{{ conta.nome }}</td>
+                            <td>{{ conta.email }}</td>
+                            <td>
+                                <span class="badge">
+                                    {{ conta.tipo|capitalize }}
+                                </span>
+                            </td>
+                            <td>
+                                {% if conta.tipo == "cliente" %}
+                                    {{ conta.cidade or "-" }}
+                                {% elif conta.tipo == "prestador" %}
+                                    {{ conta.especialidade or "-" }}
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if conta.ativo %}
+                                    Ativa
+                                {% else %}
+                                    <span class="inativo">Inativa</span>
+                                {% endif %}
+                            </td>
+                            <td class="acoes">
+                                {% if conta.tipo == "cliente" %}
+                                    <a href="{{ url_for('consultar_cliente', cliente_id=conta.id) }}">
+                                        Consultar
+                                    </a>
+                                {% elif conta.tipo == "prestador" %}
+                                    <a href="{{ url_for('consultar_prestador', prestador_id=conta.id) }}">
+                                        Consultar
+                                    </a>
+                                {% endif %}
+
+                                {% if conta.id|string != current_user.id|string %}
+                                    |
+                                    <form method="POST"
+                                          action="{{ url_for('remover_conta', conta_id=conta.id) }}"
+                                          onsubmit="return confirm('Deseja REMOVER definitivamente esta conta? Esta ação não pode ser desfeita.');">
+                                        <button type="submit">Remover</button>
+                                    </form>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <p>Nenhuma conta cadastrada ainda.</p>
+    {% endif %}
+
+{% elif modo == "nova" %}
+    <h2>Adicionar conta</h2>
+
+    <form method="POST" action="{{ url_for('nova_conta') }}">
+        <label for="tipo">Tipo de conta *</label>
+        <select id="tipo" name="tipo" required>
+            <option value="">Selecione</option>
+            <option value="cliente" {% if tipo == "cliente" %}selected{% endif %}>Cliente</option>
+            <option value="prestador" {% if tipo == "prestador" %}selected{% endif %}>Prestador</option>
+            <option value="admin" {% if tipo == "admin" %}selected{% endif %}>Administrador</option>
+        </select>
+
+        <label for="nome">Nome completo *</label>
+        <input id="nome" name="nome" type="text" maxlength="150" required
+               value="{{ nome or '' }}">
+
+        <label for="email">E-mail *</label>
+        <input id="email" name="email" type="email" maxlength="150" required
+               value="{{ email or '' }}">
+
+        <label for="senha">Senha *</label>
+        <input id="senha" name="senha" type="password" minlength="8" required
+               autocomplete="new-password">
+        <small>A senha deve ter pelo menos 8 caracteres.</small>
+
+        <button type="submit">Criar conta</button>
+        <a class="botao botao-secundario" href="{{ url_for('listar_contas') }}">Cancelar</a>
+    </form>
+{% endif %}
+{% endblock %}

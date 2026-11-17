@@ -150,6 +150,17 @@
   <h2>Detalhes do prestador</h2>
   <p><strong>ID:</strong> {{ prestador.id }}</p>
   <p><strong>Nome:</strong> {{ prestador.nome }}</p>
+  {% if media %}
+    <p>
+        <strong>Avaliações:</strong>
+        {% if media.total %}
+            {{ media.media }} / 4
+            ({{ media.total }} avaliação(ões))
+        {% else %}
+            Ainda sem avaliações
+        {% endif %}
+    </p>
+  {% endif %}
   {% if current_user.is_authenticated and current_user.tipo == "admin" %}
     <p><strong>CPF:</strong> {{ prestador.cpf }}</p>
   {% endif %}

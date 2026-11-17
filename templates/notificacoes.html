@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block titulo %}Notificações | ChamaAí{% endblock %}
+
+{% block conteudo %}
+<h2>Notificações</h2>
+
+{% if notificacoes %}
+    <form method="POST" action="{{ url_for('marcar_todas_lidas') }}" style="margin-bottom: 16px;">
+        <button type="submit" class="botao botao-secundario botao-pequeno">
+            Marcar todas como lidas
+        </button>
+    </form>
+
+    <div class="grade">
+        {% for n in notificacoes %}
+            <div class="cartao{% if not n.lida %} cartao-nova{% endif %}">
+                <p style="margin: 0 0 6px;">
+                    {% if not n.lida %}
+                        <span class="badge badge-aviso">Nova</span>
+                    {% endif %}
+                    <span class="badge">{{ n.tipo|replace('_', ' ')|capitalize }}</span>
+                </p>
+                <p style="margin: 0 0 4px;"><strong>{{ n.mensagem }}</strong></p>
+                {% if n.pedido_descricao %}
+                    <p style="margin: 0 0 12px; color: var(--suave); font-size: 0.9rem;">
+                        Pedido: {{ n.pedido_descricao[:80] }}{% if n.pedido_descricao|length > 80 %}…{% endif %}
+                    </p>
+                {% endif %}
+                <p style="margin: 0; color: var(--suave); font-size: 0.85rem;">
+                    {{ n.data_criacao }}
+                </p>
+                {% if not n.lida %}
+                    <form method="POST"
+                          action="{{ url_for('marcar_notificacao_lida', notificacao_id=n.id) }}"
+                          style="margin-top: 12px;">
+                        <button type="submit" class="botao botao-pequeno">Marcar como lida</button>
+                    </form>
+                {% endif %}
+            </div>
+        {% endfor %}
+    </div>
+{% else %}
+    <p>Você ainda não tem notificações.</p>
+{% endif %}
+{% endblock %}

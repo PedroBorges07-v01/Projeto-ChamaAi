@@ -76,6 +76,17 @@ def carregar_usuario(user_id):
         usuario["ativo"],
     )
 
+@app.context_processor
+def injetar_contador_notificacoes():
+    if not current_user.is_authenticated:
+        return {"notificacoes_nao_lidas": 0}
+    db = get_db()
+    total = db.execute(
+        "SELECT COUNT(*) FROM notificacoes WHERE usuario_id = ? AND lida = 0",
+        (current_user.id,),
+    ).fetchone()[0]
+    return {"notificacoes_nao_lidas": total}
+
 
 def admin_required(view):
     @wraps(view)
@@ -112,10 +123,52 @@ def destino_pos_login(usuario=None):
         return url_for("painel")
     return url_for("painel")
 
-
 def obter_prestador_atual(db=None):
     if not current_user.is_authenticated or current_user.tipo != "prestador":
         return None
+
+    db = db or get_db()
+    return db.execute(
+        """
+        SELECT *
+        FROM prestadores
+        WHERE usuario_id = ?
+           OR (usuario_id IS NULL AND email = ?)
+        """,
+        (current_user.id, current_user.email),
+    ).fetchone()
+
+NOTAS_AVALIACAO = ("excelente", "bom", "ruim", "pessimo")
+
+ROTULO_NOTA = {
+    "excelente": "Excelente",
+    "bom": "Bom",
+    "ruim": "Ruim",
+    "pessimo": "Péssimo",
+}
+
+
+def media_avaliacoes(db, prestador_id):
+    """Retorna dict {media: float|None, total: int}."""
+    row = db.execute(
+        """
+        SELECT COUNT(*) AS total,
+               AVG(CASE nota
+                     WHEN 'excelente' THEN 4
+                     WHEN 'bom' THEN 3
+                     WHEN 'ruim' THEN 2
+                     WHEN 'pessimo' THEN 1
+                   END) AS media
+        FROM avaliacoes
+        WHERE prestador_id = ?
+        """,
+        (prestador_id,),
+    ).fetchone()
+    total = row["total"] or 0
+    return {
+        "total": total,
+        "media": round(row["media"], 2) if row["media"] is not None else None,
+    }
 
     db = db or get_db()
     return db.execute(
@@ -200,10 +253,44 @@ def registrar_areas_prestador(db, prestador_id, ids_categorias):
             (prestador_id, categoria_id),
         )
 
+def notificar(db, usuario_id, tipo, mensagem, pedido_id=None):
+    usuario = db.execute(
+        "SELECT id, ativo FROM usuarios WHERE id = ?", (usuario_id,)
+    ).fetchone()
+    if usuario is None or usuario["ativo"] != 1:
+        return
+    db.execute(
+        """
+        INSERT INTO notificacoes (usuario_id, pedido_id, tipo, mensagem)
+        VALUES (?, ?, ?, ?)
+        """,
+        (usuario_id, pedido_id, tipo, mensagem),
+    )
+
+
+def notificar_cliente_pedido(db, pedido, tipo, mensagem):
+    notificar(db, pedido["cliente_usuario_id"], tipo, mensagem, pedido["id"])
+
+
+def notificar_prestadores_da_categoria(db, categoria_id, tipo, mensagem, pedido_id):
+    prestadores = db.execute(
+        """
+        SELECT u.id AS usuario_id
+        FROM prestadores p
+        JOIN prestador_servicos ps ON ps.prestador_id = p.id
+        JOIN usuarios u ON u.id = p.usuario_id
+        WHERE ps.categoria_id = ?
+          AND p.ativo = 1
+          AND u.ativo = 1
+        """,
+        (categoria_id,),
+    ).fetchall()
+    for p in prestadores:
+        notificar(db, p["usuario_id"], tipo, mensagem, pedido_id)
+
 
 @app.cli.command("criar-admin")
 def criar_admin():
-    """Cria uma conta de administrador pelo terminal."""
     nome = click.prompt("Nome do administrador").strip()
     email = click.prompt("E-mail").strip().lower()
 
@@ -436,6 +523,47 @@ def perfil():
         prestador=prestador,
     )
 
+
+@app.route("/notificacoes")
+@login_required
+def listar_notificacoes():
+    db = get_db()
+    notificacoes = db.execute(
+        """
+        SELECT n.*, p.descricao AS pedido_descricao
+        FROM notificacoes n
+        LEFT JOIN pedidos p ON p.id = n.pedido_id
+        WHERE n.usuario_id = ?
+        ORDER BY n.lida ASC, n.data_criacao DESC
+        """,
+        (current_user.id,),
+    ).fetchall()
+    return render_template("notificacoes.html", notificacoes=notificacoes)
+
+
+@app.route("/notificacoes/<int:notificacao_id>/ler", methods=["POST"])
+@login_required
+def marcar_notificacao_lida(notificacao_id):
+    db = get_db()
+    db.execute(
+        "UPDATE notificacoes SET lida = 1 WHERE id = ? AND usuario_id = ?",
+        (notificacao_id, current_user.id),
+    )
+    db.commit()
+    return redirect(url_for("listar_notificacoes"))
+
+
+@app.route("/notificacoes/ler-todas", methods=["POST"])
+@login_required
+def marcar_todas_lidas():
+    db = get_db()
+    db.execute(
+        "UPDATE notificacoes SET lida = 1 WHERE usuario_id = ? AND lida = 0",
+        (current_user.id,),
+    )
+    db.commit()
+    flash("Notificações marcadas como lidas.", "sucesso")
+    return redirect(url_for("listar_notificacoes"))
 
 @app.route("/clientes")
 @admin_required
@@ -1095,6 +1223,7 @@ def novo_prestador():
 @app.route("/prestadores/<int:prestador_id>")
 def consultar_prestador(prestador_id):
     db = get_db()
+    media = media_avaliacoes(db, prestador_id)
     prestador = db.execute(
         "SELECT * FROM prestadores WHERE id = ?",
         (prestador_id,),
@@ -1133,6 +1262,7 @@ def consultar_prestador(prestador_id):
         prestador=prestador,
         servicos=servicos_area,
         modo="consultar",
+        media=media,
     )
 
 
@@ -1405,16 +1535,19 @@ def listar_pedidos():
     db = get_db()
     base_sql = """
         SELECT p.*, c.nome AS categoria_nome, u.nome AS cliente_nome,
-               pr.nome AS prestador_nome
+               pr.nome AS prestador_nome,
+               a.id AS avaliacao_id, a.nota AS avaliacao_nota
         FROM pedidos p
         JOIN categorias c ON c.id = p.categoria_id
         JOIN usuarios u ON u.id = p.cliente_usuario_id
         LEFT JOIN prestadores pr ON pr.id = p.prestador_id
+        LEFT JOIN avaliacoes a ON a.pedido_id = p.id
     """
     ordem = " ORDER BY p.data_criacao DESC, p.id DESC"
 
     if current_user.tipo == "admin":
         pedidos = db.execute(base_sql + ordem).fetchall()
+
     elif current_user.tipo == "prestador":
         prestador = obter_prestador_atual(db)
         if prestador is None:
@@ -1424,15 +1557,20 @@ def listar_pedidos():
             base_sql
             + """
             WHERE (
-                p.status = 'aberto'
-                AND p.id NOT IN (
-                    SELECT pedido_id FROM pedido_recusas WHERE prestador_id = ?
+                (
+                    p.status = 'aberto'
+                    AND p.id NOT IN (
+                        SELECT pedido_id FROM pedido_recusas
+                        WHERE prestador_id = ?
+                    )
                 )
-            ) OR p.prestador_id = ?
+                OR p.prestador_id = ?
+            )
             """
             + ordem,
             (prestador["id"], prestador["id"]),
         ).fetchall()
+
     else:
         pedidos = db.execute(
             base_sql + " WHERE p.cliente_usuario_id = ?" + ordem,
@@ -1457,7 +1595,7 @@ def novo_pedido():
         categoria = None
         if categoria_sel.isdigit():
             categoria = db.execute(
-                "SELECT id FROM categorias WHERE id = ? AND ativo = 1",
+                "SELECT id, nome FROM categorias WHERE id = ? AND ativo = 1",
                 (int(categoria_sel),),
             ).fetchone()
         if categoria is None:
@@ -1485,7 +1623,7 @@ def novo_pedido():
                 with open(os.path.join(pasta, nome_foto), "wb") as destino:
                     destino.write(dados)
 
-            db.execute(
+            cursor = db.execute(
                 """
                 INSERT INTO pedidos
                 (cliente_usuario_id, categoria_id, descricao, foto)
@@ -1493,6 +1631,16 @@ def novo_pedido():
                 """,
                 (current_user.id, int(categoria_sel), descricao, nome_foto),
             )
+
+            # Notifica prestadores da categoria usando o id do pedido recém-criado
+            notificar_prestadores_da_categoria(
+                db,
+                int(categoria_sel),
+                "novo_pedido",
+                f"Novo pedido de {categoria['nome']}: {descricao[:60]}",
+                cursor.lastrowid,
+            )
+
             db.commit()
             flash("Pedido enviado com sucesso.", "sucesso")
             return redirect(url_for("listar_pedidos"))
@@ -1514,7 +1662,6 @@ def novo_pedido():
         categoria_id="",
         descricao="",
     )
-
 
 @app.route("/pedidos/<int:pedido_id>/foto")
 @login_required
@@ -1541,80 +1688,367 @@ def foto_pedido(pedido_id):
 def atualizar_pedido(pedido_id, acao):
     db = get_db()
     pedido = db.execute(
-        "SELECT * FROM pedidos WHERE id = ?",
-        (pedido_id,),
+        "SELECT * FROM pedidos WHERE id = ?", (pedido_id,)
     ).fetchone()
+
     if pedido is None:
         flash("Pedido não encontrado.", "erro")
         return redirect(url_for("listar_pedidos"))
 
-    if acao not in ("aceitar", "recusar", "cancelar"):
-        flash("Ação inválida.", "erro")
-        return redirect(url_for("listar_pedidos"))
-
+    # ---- cliente cancela, só se aberto ----
     if acao == "cancelar":
-        if (
-            current_user.tipo != "cliente"
-            or str(pedido["cliente_usuario_id"]) != current_user.id
-        ):
-            flash("Acesso não autorizado para este perfil.", "erro")
-            return redirect(url_for("listar_pedidos"))
-        cursor = db.execute(
-            "UPDATE pedidos SET status = 'cancelado' "
-            "WHERE id = ? AND status = 'aberto'",
-            (pedido_id,),
-        )
-        db.commit()
-        if cursor.rowcount:
+        if current_user.tipo != "cliente" or pedido["cliente_usuario_id"] != int(current_user.id):
+            flash("Você não pode cancelar este pedido.", "erro")
+        elif pedido["status"] != "aberto":
+            flash("Só é possível cancelar pedidos com status 'aberto'.", "erro")
+        else:
+            db.execute(
+                "UPDATE pedidos SET status = 'cancelado' WHERE id = ?",
+                (pedido_id,),
+            )
+            notificar_cliente_pedido(
+                db, pedido, "pedido_cancelado",
+                f"Seu pedido #{pedido_id} foi cancelado.",
+            )
+            db.commit()
             flash("Pedido cancelado.", "sucesso")
-        else:
-            flash("Este pedido não pode ser cancelado agora.", "erro")
         return redirect(url_for("listar_pedidos"))
 
-    prestador = obter_prestador_atual(db)
-    if (
-        current_user.tipo != "prestador"
-        or prestador is None
-        or not prestador["ativo"]
-    ):
-        flash("Acesso não autorizado para este perfil.", "erro")
-        return redirect(url_for("listar_pedidos"))
-
+    # ---- prestador aceita ----
     if acao == "aceitar":
-        # UPDATE condicional: só um prestador consegue aceitar o pedido.
-        cursor = db.execute(
-            """
-            UPDATE pedidos
-            SET status = 'aceito', prestador_id = ?
-            WHERE id = ? AND status = 'aberto'
-            """,
-            (prestador["id"], pedido_id),
-        )
-        db.commit()
-        if cursor.rowcount:
-            flash("Pedido aceito com sucesso.", "sucesso")
-        else:
-            flash("Este pedido não está mais disponível.", "erro")
-    else:
+        if current_user.tipo != "prestador":
+            flash("Apenas prestadores podem aceitar pedidos.", "erro")
+            return redirect(url_for("listar_pedidos"))
+
+        prestador = obter_prestador_atual(db)
+        if prestador is None:
+            flash("Cadastro de prestador não encontrado.", "erro")
+            return redirect(url_for("listar_pedidos"))
+
         if pedido["status"] != "aberto":
-            flash("Este pedido não está mais disponível.", "erro")
+            flash("Este pedido não está mais aberto.", "erro")
+        else:
+            db.execute(
+                "UPDATE pedidos SET status = 'aceito', prestador_id = ? WHERE id = ?",
+                (prestador["id"], pedido_id),
+            )
+            notificar_cliente_pedido(
+                db, pedido, "pedido_aceito",
+                f"Seu pedido #{pedido_id} foi aceito pelo prestador.",
+            )
+            db.commit()
+            flash("Pedido aceito.", "sucesso")
+        return redirect(url_for("listar_pedidos"))
+
+    # ---- prestador recusa ----
+    if acao == "recusar":
+        if current_user.tipo != "prestador":
+            flash("Apenas prestadores podem recusar pedidos.", "erro")
+            return redirect(url_for("listar_pedidos"))
+
+        prestador = obter_prestador_atual(db)
+        if prestador is None:
+            flash("Cadastro de prestador não encontrado.", "erro")
+            return redirect(url_for("listar_pedidos"))
+
+        if pedido["status"] != "aberto":
+            flash("Só é possível recusar pedidos com status 'aberto'.", "erro")
+        else:
+            try:
+                db.execute(
+                    "INSERT INTO pedido_recusas (pedido_id, prestador_id) VALUES (?, ?)",
+                    (pedido_id, prestador["id"]),
+                )
+                db.commit()
+                flash("Pedido recusado.", "sucesso")
+            except sqlite3.IntegrityError:
+                flash("Você já recusou este pedido.", "erro")
+        return redirect(url_for("listar_pedidos"))
+
+    # ---- prestador responsável finaliza ----
+    if acao == "finalizar":
+        if current_user.tipo != "prestador":
+            flash("Apenas prestadores podem finalizar pedidos.", "erro")
+            return redirect(url_for("listar_pedidos"))
+
+        prestador = obter_prestador_atual(db)
+        if (
+            prestador is None
+            or pedido["prestador_id"] is None
+            or pedido["prestador_id"] != prestador["id"]
+        ):
+            flash("Você não é o prestador responsável por este pedido.", "erro")
+        elif pedido["status"] != "aceito":
+            flash("Só é possível finalizar pedidos 'aceitos'.", "erro")
+        else:
+            db.execute(
+                "UPDATE pedidos SET status = 'finalizado' WHERE id = ?",
+                (pedido_id,),
+            )
+            notificar_cliente_pedido(
+                db, pedido, "pedido_finalizado",
+                f"Seu pedido #{pedido_id} foi finalizado.",
+            )
+            db.commit()
+            flash("Pedido finalizado.", "sucesso")
+        return redirect(url_for("listar_pedidos"))
+
+    flash("Ação inválida.", "erro")
+    return redirect(url_for("listar_pedidos"))
+
+@app.route("/pedidos/<int:pedido_id>/avaliar", methods=["GET", "POST"])
+@perfil_required("cliente")
+def avaliar_pedido(pedido_id):
+    db = get_db()
+    pedido = db.execute(
+        """
+        SELECT p.*, c.nome AS categoria_nome, pr.nome AS prestador_nome
+        FROM pedidos p
+        JOIN categorias c ON c.id = p.categoria_id
+        LEFT JOIN prestadores pr ON pr.id = p.prestador_id
+        WHERE p.id = ?
+        """,
+        (pedido_id,),
+    ).fetchone()
+
+    if pedido is None:
+        flash("Pedido não encontrado.", "erro")
+        return redirect(url_for("listar_pedidos"))
+
+    if pedido["cliente_usuario_id"] != int(current_user.id):
+        flash("Você não pode avaliar este pedido.", "erro")
+        return redirect(url_for("listar_pedidos"))
+
+    if pedido["status"] != "finalizado":
+        flash("Só é possível avaliar pedidos finalizados.", "erro")
+        return redirect(url_for("listar_pedidos"))
+
+    existente = db.execute(
+        "SELECT id FROM avaliacoes WHERE pedido_id = ?", (pedido_id,)
+    ).fetchone()
+    if existente:
+        flash("Este pedido já foi avaliado.", "erro")
+        return redirect(url_for("listar_pedidos"))
+
+    if request.method == "POST":
+        nota = request.form.get("nota", "").strip()
+        comentario = request.form.get("comentario", "").strip()
+
+        if nota not in NOTAS_AVALIACAO:
+            flash("Selecione uma nota.", "erro")
+        elif len(comentario) > 1000:
+            flash("O comentário deve ter no máximo 1000 caracteres.", "erro")
         else:
             db.execute(
                 """
-                INSERT OR IGNORE INTO pedido_recusas (pedido_id, prestador_id)
-                VALUES (?, ?)
+                INSERT INTO avaliacoes
+                    (pedido_id, prestador_id, cliente_usuario_id, nota, comentario)
+                VALUES (?, ?, ?, ?, ?)
                 """,
-                (pedido_id, prestador["id"]),
+                (
+                    pedido_id,
+                    pedido["prestador_id"],
+                    current_user.id,
+                    nota,
+                    comentario or None,
+                ),
             )
+            prestador_usuario = db.execute(
+                "SELECT usuario_id FROM prestadores WHERE id = ?",
+                (pedido["prestador_id"],),
+            ).fetchone()
+            if prestador_usuario and prestador_usuario["usuario_id"]:
+                notificar(
+                    db,
+                    prestador_usuario["usuario_id"],
+                    "avaliacao_recebida",
+                    f"Você recebeu uma avaliação: {ROTULO_NOTA[nota]}.",
+                    pedido_id,
+                )
             db.commit()
-            flash("Pedido recusado. Ele não aparecerá mais para você.", "sucesso")
-    return redirect(url_for("listar_pedidos"))
+            flash("Avaliação enviada. Obrigado!", "sucesso")
+            return redirect(url_for("listar_pedidos"))
 
+    return render_template(
+        "avaliacoes.html",
+        modo="nova",
+        pedido=pedido,
+        nota="",
+        comentario="",
+    )
+
+@app.route("/minhas-avaliacoes")
+@perfil_required("prestador")
+def minhas_avaliacoes():
+    db = get_db()
+    prestador = obter_prestador_atual(db)
+    if prestador is None:
+        flash("Cadastro de prestador não encontrado.", "erro")
+        return redirect(url_for("painel"))
+
+    avaliacoes = db.execute(
+        """
+        SELECT a.*, p.descricao AS pedido_descricao,
+               u.nome AS cliente_nome, c.nome AS categoria_nome
+        FROM avaliacoes a
+        JOIN pedidos p ON p.id = a.pedido_id
+        JOIN usuarios u ON u.id = a.cliente_usuario_id
+        JOIN categorias c ON c.id = p.categoria_id
+        WHERE a.prestador_id = ?
+        ORDER BY a.data_criacao DESC
+        """,
+        (prestador["id"],),
+    ).fetchall()
+
+    resumo = media_avaliacoes(db, prestador["id"])
+    return render_template(
+        "avaliacoes.html",
+        modo="listar",
+        avaliacoes=avaliacoes,
+        resumo=resumo,
+    )
 
 @app.route("/acesso-negado")
 def acesso_negado():
     flash("Acesso não autorizado para este perfil.", "erro")
     return redirect(url_for("inicio"))
+
+@app.route("/contas")
+@admin_required
+def listar_contas():
+    db = get_db()
+    contas = db.execute(
+        """
+        SELECT u.id, u.nome, u.email, u.tipo, u.ativo, u.data_criacao,
+               c.telefone, c.cidade,
+               p.especialidade
+        FROM usuarios u
+        LEFT JOIN clientes c ON c.usuario_id = u.id
+        LEFT JOIN prestadores p ON p.usuario_id = u.id
+        ORDER BY u.tipo, u.nome
+        """
+    ).fetchall()
+    return render_template(
+        "contas.html",
+        contas=contas,
+        modo="listar",
+    )
+
+
+@app.route("/contas/nova", methods=["GET", "POST"])
+@admin_required
+def nova_conta():
+    if request.method == "POST":
+        nome = request.form.get("nome", "").strip()
+        email = request.form.get("email", "").strip().lower()
+        senha = request.form.get("senha", "")
+        tipo = request.form.get("tipo", "").strip()
+
+        if tipo not in ("cliente", "prestador", "admin"):
+            flash("Tipo de conta inválido.", "erro")
+        elif not nome or not email or not senha:
+            flash("Nome, e-mail e senha são obrigatórios.", "erro")
+        elif len(senha) < 8:
+            flash("A senha deve ter pelo menos 8 caracteres.", "erro")
+        else:
+            db = get_db()
+            existente = db.execute(
+                "SELECT id FROM usuarios WHERE email = ?", (email,)
+            ).fetchone()
+            if existente:
+                flash("Este e-mail já está cadastrado.", "erro")
+            else:
+                cursor = db.execute(
+                    """
+                    INSERT INTO usuarios (nome, email, senha_hash, tipo)
+                    VALUES (?, ?, ?, ?)
+                    """,
+                    (nome, email, generate_password_hash(senha), tipo),
+                )
+                if tipo == "cliente":
+                    db.execute(
+                        """
+                        INSERT INTO clientes (usuario_id, telefone, cidade)
+                        VALUES (?, '', '')
+                        """,
+                        (cursor.lastrowid,),
+                    )
+                db.commit()
+                flash("Conta criada com sucesso.", "sucesso")
+                return redirect(url_for("listar_contas"))
+
+        return render_template(
+            "contas.html",
+            modo="nova",
+            nome=nome,
+            email=email,
+            tipo=tipo,
+        )
+
+    return render_template("contas.html", modo="nova", nome="", email="", tipo="")
+
+
+@app.route("/contas/<int:conta_id>/remover", methods=["POST"])
+@admin_required
+def remover_conta(conta_id):
+    db = get_db()
+    conta = db.execute(
+        "SELECT id, tipo FROM usuarios WHERE id = ?", (conta_id,)
+    ).fetchone()
+
+    if conta is None:
+        flash("Conta não encontrada.", "erro")
+    elif str(conta_id) == current_user.id:
+        flash("Não é possível remover a própria conta.", "erro")
+    else:
+        # Bloqueia remoção de cliente/prestador com pedidos vinculados
+        if conta["tipo"] == "cliente":
+            total = db.execute(
+                "SELECT COUNT(*) FROM pedidos WHERE cliente_usuario_id = ?",
+                (conta_id,),
+            ).fetchone()[0]
+            if total:
+                flash(
+                    "Este cliente possui pedidos registrados. "
+                    "Use Desativar em vez de Remover.",
+                    "erro",
+                )
+                return redirect(url_for("listar_contas"))
+
+        if conta["tipo"] == "prestador":
+            prestador = db.execute(
+                "SELECT id FROM prestadores WHERE usuario_id = ?", (conta_id,)
+            ).fetchone()
+            if prestador:
+                total = db.execute(
+                    "SELECT COUNT(*) FROM pedidos WHERE prestador_id = ?",
+                    (prestador["id"],),
+                ).fetchone()[0]
+                if total:
+                    flash(
+                        "Este prestador possui pedidos vinculados. "
+                        "Use Desativar em vez de Remover.",
+                        "erro",
+                    )
+                    return redirect(url_for("listar_contas"))
+                db.execute(
+                    "DELETE FROM prestador_servicos WHERE prestador_id = ?",
+                    (prestador["id"],),
+                )
+                db.execute(
+                    "DELETE FROM prestadores WHERE id = ?", (prestador["id"],)
+                )
+
+        if conta["tipo"] == "cliente":
+            db.execute(
+                "DELETE FROM clientes WHERE usuario_id = ?", (conta_id,)
+            )
+
+        db.execute("DELETE FROM usuarios WHERE id = ?", (conta_id,))
+        db.commit()
+        flash("Conta removida com sucesso.", "sucesso")
+
+    return redirect(url_for("listar_contas"))
 
 
 if __name__ == "__main__":

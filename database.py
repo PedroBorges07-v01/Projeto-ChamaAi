@@ -25,6 +25,49 @@ def _tem_coluna(db, tabela, coluna):
     colunas = db.execute(f"PRAGMA table_info({tabela})").fetchall()
     return any(item["name"] == coluna for item in colunas)
 
+def _migrar_pedidos_finalizado(db):
+    
+    sql = db.execute(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='pedidos'"
+    ).fetchone()
+    if sql is None:
+        return  
+
+    if "'finalizado'" in (sql["sql"] or ""):
+        return  
+
+    db.commit()  
+    db.executescript("""
+        PRAGMA foreign_keys = OFF;
+
+        CREATE TABLE pedidos_novo (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            cliente_usuario_id INTEGER NOT NULL,
+            categoria_id INTEGER NOT NULL,
+            descricao TEXT NOT NULL,
+            foto TEXT,
+            status TEXT NOT NULL DEFAULT 'aberto'
+                CHECK (status IN ('aberto', 'aceito', 'finalizado', 'cancelado')),
+            prestador_id INTEGER,
+            data_criacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (cliente_usuario_id) REFERENCES usuarios (id),
+            FOREIGN KEY (categoria_id) REFERENCES categorias (id),
+            FOREIGN KEY (prestador_id) REFERENCES prestadores (id)
+        );
+
+        INSERT INTO pedidos_novo
+            (id, cliente_usuario_id, categoria_id, descricao, foto,
+             status, prestador_id, data_criacao)
+        SELECT id, cliente_usuario_id, categoria_id, descricao, foto,
+               status, prestador_id, data_criacao
+        FROM pedidos;
+
+        DROP TABLE pedidos;
+        ALTER TABLE pedidos_novo RENAME TO pedidos;
+
+        PRAGMA foreign_keys = ON;
+    """)
+
 
 def init_db():
     db = get_db()
@@ -99,7 +142,7 @@ def init_db():
             descricao TEXT NOT NULL,
             foto TEXT,
             status TEXT NOT NULL DEFAULT 'aberto'
-                CHECK (status IN ('aberto', 'aceito', 'cancelado')),
+                CHECK (status IN ('aberto', 'aceito', 'finalizado', 'cancelado')),
             prestador_id INTEGER,
             data_criacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (cliente_usuario_id) REFERENCES usuarios (id),
@@ -120,6 +163,36 @@ def init_db():
     """)
 
     db.execute("""
+    CREATE TABLE IF NOT EXISTS notificacoes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        usuario_id INTEGER NOT NULL,
+        pedido_id INTEGER,
+        tipo TEXT NOT NULL,
+        mensagem TEXT NOT NULL,
+        lida INTEGER NOT NULL DEFAULT 0,
+        data_criacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (usuario_id) REFERENCES usuarios (id),
+        FOREIGN KEY (pedido_id) REFERENCES pedidos (id)
+        )
+    """)
+
+    db.execute("""
+    CREATE TABLE IF NOT EXISTS avaliacoes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        pedido_id INTEGER NOT NULL UNIQUE,
+        prestador_id INTEGER NOT NULL,
+        cliente_usuario_id INTEGER NOT NULL,
+        nota TEXT NOT NULL
+            CHECK (nota IN ('excelente', 'bom', 'ruim', 'pessimo')),
+        comentario TEXT,
+        data_criacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (pedido_id) REFERENCES pedidos (id),
+        FOREIGN KEY (prestador_id) REFERENCES prestadores (id),
+        FOREIGN KEY (cliente_usuario_id) REFERENCES usuarios (id)
+        )
+    """)
+
+    db.execute("""
         UPDATE prestadores
         SET usuario_id = (
             SELECT u.id
@@ -130,6 +203,8 @@ def init_db():
         )
         WHERE usuario_id IS NULL
     """)
+
+    _migrar_pedidos_finalizado(db)
 
     db.commit()
 

@@ -28,6 +28,11 @@
             <p>Pedidos</p>
             <a class="botao" href="{{ url_for('listar_pedidos') }}">Ver todos</a>
         </div>
+        <div class="cartao">
+            <h3>Contas</h3>
+            <p>Gerencie clientes, prestadores e administradores.</p>
+            <a class="botao" href="{{ url_for('listar_contas') }}">Gerenciar</a>
+        </div>
     </div>
 
 {% elif current_user.tipo == "prestador" %}

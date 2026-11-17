@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+
+{% block titulo %}Avaliações | ChamaAí{% endblock %}
+
+{% block conteudo %}
+{% if modo == "nova" %}
+    <h2>Avaliar serviço</h2>
+
+    <p>
+        Pedido <strong>#{{ pedido.id }}</strong> —
+        {{ pedido.categoria_nome }}
+        {% if pedido.prestador_nome %}
+            — prestador <strong>{{ pedido.prestador_nome }}</strong>
+        {% endif %}
+    </p>
+    <p style="color: var(--suave);">{{ pedido.descricao }}</p>
+
+    <form method="POST" action="{{ url_for('avaliar_pedido', pedido_id=pedido.id) }}">
+        <fieldset>
+            <legend>Como foi o atendimento? *</legend>
+
+            <label>
+                <input type="radio" name="nota" value="excelente"
+                       {% if nota == "excelente" %}checked{% endif %} required>
+                Excelente
+            </label>
+            <label>
+                <input type="radio" name="nota" value="bom"
+                       {% if nota == "bom" %}checked{% endif %}>
+                Bom
+            </label>
+            <label>
+                <input type="radio" name="nota" value="ruim"
+                       {% if nota == "ruim" %}checked{% endif %}>
+                Ruim
+            </label>
+            <label>
+                <input type="radio" name="nota" value="pessimo"
+                       {% if nota == "pessimo" %}checked{% endif %}>
+                Péssimo
+            </label>
+        </fieldset>
+
+        <label for="comentario">Comentário (opcional)</label>
+        <textarea id="comentario" name="comentario" rows="4" maxlength="1000"
+                  placeholder="Conte como foi o atendimento...">{{ comentario or '' }}</textarea>
+
+        <button type="submit">Enviar avaliação</button>
+        <a class="botao botao-secundario" href="{{ url_for('listar_pedidos') }}">Cancelar</a>
+    </form>
+
+{% elif modo == "listar" %}
+    <h2>Minhas avaliações</h2>
+
+    {% if resumo and resumo.total %}
+        <p>
+            <span class="badge">{{ resumo.total }} avaliação(ões)</span>
+            Média:
+            <strong>{{ resumo.media }} / 4</strong>
+        </p>
+    {% endif %}
+
+    {% if avaliacoes %}
+        <div class="grade">
+            {% for a in avaliacoes %}
+                <div class="cartao">
+                    <p style="margin: 0 0 6px;">
+                        <span class="badge
+                            {% if a.nota == 'excelente' %}badge-sucesso
+                            {% elif a.nota == 'bom' %}badge-info
+                            {% elif a.nota == 'ruim' %}badge-aviso
+                            {% elif a.nota == 'pessimo' %}badge-erro
+                            {% endif %}">
+                            {{ a.nota|capitalize }}
+                        </span>
+                        <span style="color: var(--suave); font-size: 0.85rem;">
+                            · {{ a.data_criacao }}
+                        </span>
+                    </p>
+                    <p style="margin: 0 0 6px;">
+                        Pedido #{{ a.pedido_id }} — {{ a.categoria_nome }}
+                    </p>
+                    <p style="margin: 0 0 6px; color: var(--suave);">
+                        Cliente: {{ a.cliente_nome }}
+                    </p>
+                    {% if a.comentario %}
+                        <p style="margin: 0;">“{{ a.comentario }}”</p>
+                    {% endif %}
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <p>Você ainda não recebeu avaliações.</p>
+    {% endif %}
+{% endif %}
+{% endblock %}

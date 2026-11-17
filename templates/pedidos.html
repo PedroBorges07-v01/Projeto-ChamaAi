@@ -56,30 +56,65 @@
                                 <td>{{ item.cliente_nome }}</td>
                             {% endif %}
                             <td>
-                                <span class="badge">{{ item.status }}</span>
+                                <span class="badge
+                                    {% if item.status == 'aberto' %}badge-aviso
+                                    {% elif item.status == 'aceito' %}status-aceita
+                                    {% elif item.status == 'finalizado' %}status-concluida
+                                    {% elif item.status == 'cancelado' %}status-cancelada
+                                    {% endif %}">
+                                    {{ item.status|capitalize }}
+                                </span>
                                 {% if item.status == "aceito" and item.prestador_nome %}
                                     <br>por {{ item.prestador_nome }}
                                 {% endif %}
+                                {% if item.avaliacao_nota %}
+                                    <br><span class="badge badge-sucesso">{{ item.avaliacao_nota|capitalize }}</span>
+                                {% endif %}
                             </td>
                             <td class="acoes">
+                                {# cliente: cancela somente se aberto #}
                                 {% if current_user.tipo == "cliente" and item.status == "aberto" %}
                                     <form method="POST"
-                                          action="{{ url_for('atualizar_pedido', pedido_id=item.id, acao='cancelar') }}"
-                                          onsubmit="return confirm('Cancelar este pedido?');">
-                                        <button type="submit">Cancelar</button>
+                                        action="{{ url_for('atualizar_pedido', pedido_id=item.id, acao='cancelar') }}"
+                                        onsubmit="return confirm('Cancelar este pedido?');">
+                                        <button type="submit" class="botao-perigo botao-pequeno">Cancelar</button>
                                     </form>
                                 {% endif %}
+
+                                {# prestador: aceitar/recusar se aberto #}
                                 {% if current_user.tipo == "prestador" and item.status == "aberto" %}
                                     <form method="POST"
-                                          action="{{ url_for('atualizar_pedido', pedido_id=item.id, acao='aceitar') }}">
-                                        <button type="submit">Aceitar</button>
+                                        action="{{ url_for('atualizar_pedido', pedido_id=item.id, acao='aceitar') }}">
+                                        <button type="submit" class="botao-pequeno">Aceitar</button>
                                     </form>
                                     <form method="POST"
-                                          action="{{ url_for('atualizar_pedido', pedido_id=item.id, acao='recusar') }}">
-                                        <button type="submit">Recusar</button>
+                                        action="{{ url_for('atualizar_pedido', pedido_id=item.id, acao='recusar') }}">
+                                        <button type="submit" class="botao-secundario botao-pequeno">Recusar</button>
                                     </form>
                                 {% endif %}
-                            </td>
+
+                                {# prestador responsável: finalizar se aceito #}
+                                {% if current_user.tipo == "prestador"
+                                    and item.status == "aceito"
+                                    and item.prestador_id %}
+                                    <form method="POST"
+                                        action="{{ url_for('atualizar_pedido', pedido_id=item.id, acao='finalizar') }}">
+                                        <button type="submit" class="botao-pequeno">Finalizar</button>
+                                    </form>
+                                {% endif %}
+
+                                {# cliente: avaliar pedido finalizado #}
+                                {% if current_user.tipo == "cliente" and item.status == "finalizado" %}
+                                {% if item.avaliacao_id %}
+                                    <span class="badge badge-sucesso">Avaliado</span>
+                                {% else %}
+                                    <form method="GET" 
+                                        action="{{ url_for('avaliar_pedido', pedido_id=item.id) }}">
+                                        <button type="submit" class="botao-pequeno">Avaliar</button>
+                                    </form>
+                                {% endif %}
+                                {% endif %}
+                            </td>>
                         </tr>
                     {% endfor %}
                 </tbody>
